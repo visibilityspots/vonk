@@ -1,6 +1,6 @@
 # CSI volume for the vonk SQLite DB. Create /volume4/nomad/data/vonk/ on the NAS first
 # and make it writable for the container user (UID 1000), or rely on mountPermissions.
-# Register with: nomad volume create nomad/vonk-volume.hcl   (as for the other nfs-*.hcl)
+# Register with: nomad volume register nomad/vonk-volume.hcl   (as for the other nfs-*.hcl)
 type = "csi"
 id = "vonk"
 external_id = "vonk"
