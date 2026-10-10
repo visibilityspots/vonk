@@ -10,4 +10,8 @@ on:
 
 jobs:
   scan:
+    # this repo's default GITHUB_TOKEN is read-only; the shared job uploads SARIF
+    permissions:
+      contents: read
+      security-events: write
     uses: visibilityspots/github-workflows/.github/workflows/trivy.yml@main
