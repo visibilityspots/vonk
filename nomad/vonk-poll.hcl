@@ -1,6 +1,6 @@
 # vonk-poll: stateless periodic batch run of the same image as vonk.hcl. It talks to the
 # service over its internal API and always reports back (/api/poll-report), also on failure.
-# Vault kv/data/services/vonk keys used: api_token, anthropic_api_key, takken
+# Vault kv/data/services/vonk-poll keys (the nomad-workloads policy grants kv/data/<namespace>/<job>) used: api_token, anthropic_api_key, takken
 # (comma separated tak names, see src/vonk/models.py). Every secret is rendered with
 # toJSON, so quotes or newlines in a value cannot break the env file; a missing key
 # renders as "" (counts as missing) instead of the string null.
@@ -43,7 +43,7 @@ job "vonk-poll" {
 TZ = "Europe/Brussels"
 # no /api suffix: the poll command appends it
 VONK_API_URL = "https://vonk.visibilityspots.net"
-{{with secret "kv/data/services/vonk"}}
+{{with secret "kv/data/services/vonk-poll"}}
 VONK_API_TOKEN = {{with .Data.data.api_token}}{{. | toJSON}}{{else}}""{{end}}
 ANTHROPIC_API_KEY = {{with .Data.data.anthropic_api_key}}{{. | toJSON}}{{else}}""{{end}}
 TAKKEN = {{with .Data.data.takken}}{{. | toJSON}}{{else}}""{{end}}
