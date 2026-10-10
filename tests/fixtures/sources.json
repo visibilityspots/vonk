@@ -1,0 +1,60 @@
+{
+  "note": "Source PDFs are never committed (they contain leiding names and phone numbers). Run scripts/fetch_fixtures.py to download them into tests/fixtures/pdf/ and verify sha256. The text fixtures are `pdftotext -layout` output (poppler 26.08.0), redacted by hand: every person name, phone number and e-mail address is replaced with [REDACTED].",
+  "pdftotext": "pdftotext -layout (poppler 26.08.0)",
+  "fixtures": [
+    {
+      "name": "kabouters-2026-10",
+      "kind": "monthly",
+      "tak": "kabouters",
+      "scope": "kabouters:2026-10",
+      "post_id": 2677,
+      "post_date": "2026-10-05T20:09:39",
+      "post_modified": "2026-10-05T20:09:39",
+      "title": "Vonk oktober",
+      "categories": [10],
+      "category": "Vonk kabouters",
+      "post_link": "https://scoutstervant.be/2026/10/05/vonk-oktober-46/",
+      "url": "https://scoutstervant.be/wp-content/uploads/2026/10/Orange-Purple-Illustrative-Halloween-Page-Border-A4-Document-1.pdf",
+      "sha256": "c3938cc336c08591e901b97ce07799c5e5eaf01fb6f4155b6b4d26ac26250ab5",
+      "pages": "all",
+      "text": "text/kabouters-2026-10.txt",
+      "redactions": 0
+    },
+    {
+      "name": "jeevees-2026-10",
+      "kind": "monthly",
+      "tak": "jeevees",
+      "scope": "jeevees:2026-10",
+      "post_id": 2647,
+      "post_date": "2026-09-22T19:30:51",
+      "post_modified": "2026-09-22T19:30:51",
+      "title": "Vonk Oktober",
+      "categories": [13],
+      "category": "Vonk jong verkenners",
+      "post_link": "https://scoutstervant.be/2026/09/22/vonk-oktober-43/",
+      "url": "https://scoutstervant.be/wp-content/uploads/2026/09/vonk-jevees-oktober-2026.pdf",
+      "sha256": "8df441c740f849cb762381ebfe85e16ba781d4c7a6de75e723cd4fa9e1931a50",
+      "pages": "all",
+      "text": "text/jeevees-2026-10.txt",
+      "redactions": 0
+    },
+    {
+      "name": "jaarvonk-2026-2027",
+      "kind": "jaarvonk",
+      "tak": "groep",
+      "scope": "groep:2026-2027",
+      "post_id": 2686,
+      "post_date": "2026-10-08T17:05:42",
+      "post_modified": "2026-10-08T17:15:45",
+      "title": "Jaarvonk 2026-2027",
+      "categories": [6, 28],
+      "category": "Groepspraatje, Info",
+      "post_link": "https://scoutstervant.be/2026/10/08/jaarvonk-2026-2027/",
+      "url": "https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.pdf",
+      "sha256": "655ceccd93f4341600af57d75f46074d9de0c04dd6b09afd64d525505ba00614",
+      "pages": "3,6-8",
+      "text": "text/jaarvonk-2026-2027.txt",
+      "redactions": 4
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+.omc
+.pytest_cache
+.ruff_cache
+__pycache__
+*.egg-info
+*.db
+tests
+scripts
+nomad
+IDEA.md
+README.md

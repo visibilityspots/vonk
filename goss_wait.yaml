@@ -1,0 +1,6 @@
+# dgoss waits on this file (GOSS_WAIT_OPTS, default "-r 30s -s 1s") before running
+# goss.yaml, so the checks don't race uvicorn's startup.
+http:
+  http://127.0.0.1:8080/health:
+    status: 200
+    timeout: 2000

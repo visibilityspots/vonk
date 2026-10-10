@@ -1,0 +1,184 @@
+[
+  {
+    "id": 29,
+    "name": "Events",
+    "slug": "events",
+    "count": 0,
+    "parent": 0
+  },
+  {
+    "id": 1,
+    "name": "Geen categorie",
+    "slug": "geen-categorie",
+    "count": 8,
+    "parent": 0
+  },
+  {
+    "id": 27,
+    "name": "Gidsen Leiding",
+    "slug": "gid-leiding",
+    "count": 4,
+    "parent": 18
+  },
+  {
+    "id": 6,
+    "name": "Groepspraatje",
+    "slug": "groepspraatje",
+    "count": 3,
+    "parent": 0
+  },
+  {
+    "id": 31,
+    "name": "Hoofdleiding en Materiaalploeg",
+    "slug": "lei-leiding",
+    "count": 6,
+    "parent": 18
+  },
+  {
+    "id": 28,
+    "name": "Info",
+    "slug": "info",
+    "count": 3,
+    "parent": 0
+  },
+  {
+    "id": 25,
+    "name": "JeeVee Leiding",
+    "slug": "jee-leiding",
+    "count": 5,
+    "parent": 18
+  },
+  {
+    "id": 20,
+    "name": "Jin Leiding",
+    "slug": "jin-leiding",
+    "count": 4,
+    "parent": 18
+  },
+  {
+    "id": 24,
+    "name": "Jogi Leiding",
+    "slug": "jog-leiding",
+    "count": 7,
+    "parent": 18
+  },
+  {
+    "id": 21,
+    "name": "Kabouter Leiding",
+    "slug": "kab-leiding",
+    "count": 7,
+    "parent": 18
+  },
+  {
+    "id": 22,
+    "name": "Kapoenen Leiding",
+    "slug": "kap-leiding",
+    "count": 5,
+    "parent": 18
+  },
+  {
+    "id": 30,
+    "name": "kas",
+    "slug": "kas",
+    "count": 0,
+    "parent": 0
+  },
+  {
+    "id": 18,
+    "name": "Leiding",
+    "slug": "leidingsploeg",
+    "count": 0,
+    "parent": 0
+  },
+  {
+    "id": 19,
+    "name": "time_line",
+    "slug": "time_line",
+    "count": 0,
+    "parent": 0
+  },
+  {
+    "id": 26,
+    "name": "Verkenner Leiding",
+    "slug": "ver-leiding",
+    "count": 4,
+    "parent": 18
+  },
+  {
+    "id": 8,
+    "name": "Vonk",
+    "slug": "vonk",
+    "count": 0,
+    "parent": 0
+  },
+  {
+    "id": 14,
+    "name": "Vonk gidsen",
+    "slug": "gid-vonk",
+    "count": 1,
+    "parent": 8
+  },
+  {
+    "id": 16,
+    "name": "Vonk jins",
+    "slug": "jin-vonk",
+    "count": 1,
+    "parent": 8
+  },
+  {
+    "id": 12,
+    "name": "Vonk jong gidsen",
+    "slug": "jog-vonk",
+    "count": 1,
+    "parent": 8
+  },
+  {
+    "id": 13,
+    "name": "Vonk jong verkenners",
+    "slug": "jee-vonk",
+    "count": 1,
+    "parent": 8
+  },
+  {
+    "id": 10,
+    "name": "Vonk kabouters",
+    "slug": "kab-vonk",
+    "count": 1,
+    "parent": 8
+  },
+  {
+    "id": 9,
+    "name": "Vonk kapoenen",
+    "slug": "kap-vonk",
+    "count": 1,
+    "parent": 8
+  },
+  {
+    "id": 17,
+    "name": "Vonk Leiding",
+    "slug": "lei-vonk",
+    "count": 0,
+    "parent": 8
+  },
+  {
+    "id": 15,
+    "name": "Vonk verkenners",
+    "slug": "ver-vonk",
+    "count": 1,
+    "parent": 8
+  },
+  {
+    "id": 11,
+    "name": "Vonk welpen",
+    "slug": "wel-vonk",
+    "count": 1,
+    "parent": 8
+  },
+  {
+    "id": 23,
+    "name": "Welpen Leiding",
+    "slug": "wel-leiding",
+    "count": 6,
+    "parent": 18
+  }
+]

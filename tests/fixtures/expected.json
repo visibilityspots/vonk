@@ -1,0 +1,319 @@
+{
+  "status": "DRAFT - hand-built from tests/fixtures/text/*.txt, awaiting review by Jan (see expected.README.md)",
+  "compare": "date, end_date, start, end, all_day and end_unknown must match exactly; the normalised title_activity must contain at least one of title_keys (case-insensitive). title_activity is the reference title from tests/fixtures/llm/*.json.",
+  "fixtures": {
+    "kabouters-2026-10": {
+      "scope": "kabouters:2026-10",
+      "kind": "monthly",
+      "events": [
+        {
+          "date": "2026-10-03",
+          "end_date": "2026-10-04",
+          "start": null,
+          "end": null,
+          "all_day": true,
+          "end_unknown": false,
+          "title_activity": "Geen scouts dit weekend, want het is Powell Party!",
+          "title_keys": [
+            "geen scouts"
+          ]
+        },
+        {
+          "date": "2026-10-11",
+          "end_date": null,
+          "start": "14:00:00",
+          "end": "17:00:00",
+          "all_day": false,
+          "end_unknown": false,
+          "title_activity": "bosspel",
+          "title_keys": [
+            "bos"
+          ]
+        },
+        {
+          "date": "2026-10-18",
+          "end_date": null,
+          "start": "14:00:00",
+          "end": "17:00:00",
+          "all_day": false,
+          "end_unknown": false,
+          "title_activity": "make-over",
+          "title_keys": [
+            "make-over",
+            "handen uit de mouwen",
+            "lokaal"
+          ]
+        },
+        {
+          "date": "2026-10-24",
+          "end_date": null,
+          "start": "14:00:00",
+          "end": "17:00:00",
+          "all_day": false,
+          "end_unknown": false,
+          "title_activity": "We worden gedropt",
+          "title_keys": [
+            "gedropt",
+            "weg terug"
+          ]
+        },
+        {
+          "date": "2026-10-31",
+          "end_date": null,
+          "start": "14:00:00",
+          "end": "17:00:00",
+          "all_day": false,
+          "end_unknown": false,
+          "title_activity": "We gaan koken!",
+          "title_keys": [
+            "koken",
+            "halloweeen"
+          ]
+        }
+      ]
+    },
+    "jeevees-2026-10": {
+      "scope": "jeevees:2026-10",
+      "kind": "monthly",
+      "events": [
+        {
+          "date": "2026-10-02",
+          "end_date": "2026-10-03",
+          "start": null,
+          "end": null,
+          "all_day": true,
+          "end_unknown": false,
+          "title_activity": "Geen scouts dit weekend",
+          "title_keys": [
+            "geen scouts"
+          ]
+        },
+        {
+          "date": "2026-10-11",
+          "end_date": null,
+          "start": "10:00:00",
+          "end": "13:00:00",
+          "all_day": false,
+          "end_unknown": true,
+          "title_activity": "Kaartenverkoop voor kampmenu!",
+          "title_keys": [
+            "kaartenverkoop",
+            "kampmenu"
+          ]
+        },
+        {
+          "date": "2026-10-17",
+          "end_date": null,
+          "start": null,
+          "end": null,
+          "all_day": true,
+          "end_unknown": false,
+          "title_activity": "jonggivertrophy",
+          "title_keys": [
+            "trophy"
+          ]
+        },
+        {
+          "date": "2026-10-24",
+          "end_date": null,
+          "start": "18:00:00",
+          "end": "21:00:00",
+          "all_day": false,
+          "end_unknown": true,
+          "title_activity": "Dropping",
+          "title_keys": [
+            "dropping"
+          ]
+        },
+        {
+          "date": "2026-10-31",
+          "end_date": null,
+          "start": "14:00:00",
+          "end": "17:00:00",
+          "all_day": false,
+          "end_unknown": false,
+          "title_activity": "ruiltocht in halloween thema",
+          "title_keys": [
+            "ruiltocht",
+            "halloween"
+          ]
+        }
+      ]
+    },
+    "jaarvonk-2026-2027": {
+      "scope": "groep:2026-2027",
+      "kind": "jaarvonk",
+      "events": [
+        {
+          "date": "2026-10-02",
+          "end_date": null,
+          "start": null,
+          "end": null,
+          "all_day": true,
+          "end_unknown": false,
+          "title_activity": "Powell After Work",
+          "title_keys": [
+            "powell after work"
+          ]
+        },
+        {
+          "date": "2026-10-03",
+          "end_date": null,
+          "start": null,
+          "end": null,
+          "all_day": true,
+          "end_unknown": false,
+          "title_activity": "Geen scouts (Powell party)",
+          "title_keys": [
+            "powell party",
+            "geen scouts"
+          ]
+        },
+        {
+          "date": "2026-10-18",
+          "end_date": null,
+          "start": null,
+          "end": null,
+          "all_day": true,
+          "end_unknown": false,
+          "title_activity": "Jonggiver en Giver trophy",
+          "title_keys": [
+            "trophy"
+          ]
+        },
+        {
+          "date": "2026-10-24",
+          "end_date": null,
+          "start": null,
+          "end": null,
+          "all_day": true,
+          "end_unknown": false,
+          "title_activity": "Dropping",
+          "title_keys": [
+            "dropping"
+          ]
+        },
+        {
+          "date": "2026-11-08",
+          "end_date": null,
+          "start": "11:00:00",
+          "end": "14:00:00",
+          "all_day": false,
+          "end_unknown": false,
+          "title_activity": "Kampmenu",
+          "title_keys": [
+            "kampmenu"
+          ]
+        },
+        {
+          "date": "2026-11-28",
+          "end_date": null,
+          "start": "14:00:00",
+          "end": "17:00:00",
+          "all_day": false,
+          "end_unknown": true,
+          "title_activity": "Minimarkt",
+          "title_keys": [
+            "minimarkt"
+          ]
+        },
+        {
+          "date": "2026-12-18",
+          "end_date": null,
+          "start": "19:00:00",
+          "end": "21:00:00",
+          "all_day": false,
+          "end_unknown": false,
+          "title_activity": "Kerstfeestje",
+          "title_keys": [
+            "kerstfeestje"
+          ]
+        },
+        {
+          "date": "2026-12-25",
+          "end_date": null,
+          "start": "00:00:00",
+          "end": "03:00:00",
+          "all_day": false,
+          "end_unknown": true,
+          "title_activity": "Middernachtmis",
+          "title_keys": [
+            "middernachtmis"
+          ]
+        },
+        {
+          "date": "2027-02-06",
+          "end_date": null,
+          "start": null,
+          "end": null,
+          "all_day": true,
+          "end_unknown": false,
+          "title_activity": "Eetdag Akaba",
+          "title_keys": [
+            "eetdag"
+          ]
+        },
+        {
+          "date": "2027-02-20",
+          "end_date": "2027-02-21",
+          "start": null,
+          "end": null,
+          "all_day": true,
+          "end_unknown": false,
+          "title_activity": "Geen scouts (Kampplanning)",
+          "title_keys": [
+            "kampplanning"
+          ]
+        },
+        {
+          "date": "2027-04-10",
+          "end_date": null,
+          "start": null,
+          "end": null,
+          "all_day": true,
+          "end_unknown": false,
+          "title_activity": "Powell Quiz",
+          "title_keys": [
+            "powell quiz"
+          ]
+        },
+        {
+          "date": "2027-04-25",
+          "end_date": null,
+          "start": "14:00:00",
+          "end": "17:00:00",
+          "all_day": false,
+          "end_unknown": false,
+          "title_activity": "Groepsactiviteit",
+          "title_keys": [
+            "groepsactiviteit"
+          ]
+        },
+        {
+          "date": "2027-05-28",
+          "end_date": null,
+          "start": "19:00:00",
+          "end": "22:00:00",
+          "all_day": false,
+          "end_unknown": true,
+          "title_activity": "Kampinschrijving",
+          "title_keys": [
+            "kampinschrijving"
+          ]
+        },
+        {
+          "date": "2027-07-12",
+          "end_date": "2027-07-22",
+          "start": null,
+          "end": null,
+          "all_day": true,
+          "end_unknown": false,
+          "title_activity": "Het kamp",
+          "title_keys": [
+            "kamp"
+          ]
+        }
+      ]
+    }
+  }
+}

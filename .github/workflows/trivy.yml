@@ -1,0 +1,13 @@
+name: trivy
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - '*'
+  schedule:
+    - cron: '17 6 * * 2'
+
+jobs:
+  scan:
+    uses: visibilityspots/github-workflows/.github/workflows/trivy.yml@main
