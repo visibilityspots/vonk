@@ -1,0 +1,76 @@
+# Paste into infrastructure/prometheus.hcl as another rule template, next to the Blackbox
+# one (left_delimiter "[[" / right_delimiter "]]" there, so {{ $value }} stays literal):
+#
+#   template {
+#     left_delimiter  = "[["
+#     right_delimiter = "]]"
+#     change_mode     = "noop"
+#     destination     = "local/rules/vonk.rules"
+#     data            = <<RULEEOF
+#   ...contents of this file...
+#   RULEEOF
+#   }
+groups:
+  - name: Vonk
+    rules:
+      - alert: VonkPollStalled
+        expr: (time() - vonk_last_completed_poll_timestamp > 13 * 3600) or absent(vonk_last_completed_poll_timestamp)
+        for: 30m
+        labels:
+          severity: "warning"
+        annotations:
+          description: |-
+            No vonk-poll run reported back for more than 13 hours, or the heartbeat is not exported at all
+              VALUE = {{ $value }}
+          summary: "vonk-poll has not completed a run (2x the 6h interval plus slack)"
+      - alert: VonkPollFailing
+        expr: (time() - vonk_last_successful_poll_timestamp > 2 * 86400) or absent(vonk_last_successful_poll_timestamp)
+        for: 30m
+        labels:
+          severity: "warning"
+        annotations:
+          description: |-
+            No successful vonk-poll run for more than 2 days, or the timestamp is not exported at all
+              VALUE = {{ $value }}
+          summary: "vonk-poll keeps failing (Baikal, scoutstervant.be or the Anthropic API)"
+      - alert: VonkDegraded
+        expr: vonk_degraded == 1
+        for: 15m
+        labels:
+          severity: "warning"
+        annotations:
+          description: "A required secret is missing or rendered as <no value>, or a structured value failed to parse"
+          summary: "vonk is running degraded (instance {{ $labels.instance }})"
+      - alert: VonkDown
+        expr: up{job=~".*vonk.*"} == 0
+        for: 15m
+        labels:
+          severity: "critical"
+        annotations:
+          description: "Prometheus cannot scrape the vonk service; if the alloc is gone the absent() branches above fire instead"
+          summary: "vonk is down (instance {{ $labels.instance }})"
+      - alert: VonkApplyError
+        expr: increase(vonk_apply_errors_total[1h]) > 0 or vonk_scopes_needing_attention > 0
+        labels:
+          severity: "critical"
+        annotations:
+          description: |-
+            A CalDAV apply failed or a scope needs attention
+              VALUE = {{ $value }}
+          summary: "vonk could not write approved changes to Baikal"
+      # only from 15 September to 31 May: the summer gap would otherwise fire in early
+      # September. month()/day_of_month() are UTC; a day off at the boundary is accepted.
+      - alert: VonkNoNewVonk
+        expr: |
+          (time() - vonk_last_new_vonk_timestamp > 45 * 86400)
+          and on() (
+            (month() >= 10 or month() <= 5)
+            or (month() == 9 and day_of_month() >= 15)
+          )
+        labels:
+          severity: "warning"
+        annotations:
+          description: |-
+            No new vonk PDF seen for more than 45 days during the scouting year
+              VALUE = {{ $value }}
+          summary: "vonk has not seen a new vonk in 45 days"

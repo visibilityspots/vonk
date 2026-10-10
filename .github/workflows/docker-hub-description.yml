@@ -1,0 +1,12 @@
+name: docker-hub-description
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  update:
+    uses: visibilityspots/github-workflows/.github/workflows/docker-hub-description.yml@main
+    secrets:
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

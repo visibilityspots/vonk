@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>vonk – {{ title }}</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 60rem; margin: 1rem auto; padding: 0 1rem; }
+  .banner { padding: .75rem 1rem; border-radius: .4rem; margin: .5rem 0; }
+  .danger { background: #fde2e1; border: 2px solid #c0392b; font-weight: bold; }
+  .warn { background: #fff4d6; border: 1px solid #d4a017; }
+  .ok { background: #e3f6e8; border: 1px solid #2e8b57; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; }
+  td, th { border-bottom: 1px solid #ddd; padding: .4rem; text-align: left; vertical-align: top; }
+  .notes { color: #555; font-size: .85em; white-space: pre-line; }
+  .side { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+  button { font-size: 1.1rem; padding: .5rem 1.5rem; }
+</style>
+</head>
+<body>
+<h1>{{ title }}</h1>
+{% if message %}<p class="banner {{ 'ok' if status == 200 else 'warn' }}">{{ message }}</p>{% endif %}
+{% if needs_attention %}
+<p class="banner danger">Deze scope vraagt aandacht: na herhaalde conflicten worden geen nieuwe
+voorstellen meer verstuurd.</p>
+{% endif %}
+{% if mass_removal %}
+<p class="banner danger">LET OP: deze wijzigingen verwijderen meer dan de helft van de events van
+{{ scope_key }}.</p>
+{% endif %}
+{% for w in warnings %}<p class="banner warn">⚠ {{ w }}</p>{% endfor %}
+
+{% if results %}
+<h2>Resultaat</h2>
+<table>
+<tr><th>#</th><th>Resultaat</th><th>HTTP</th><th>Fout</th></tr>
+{% for r in results %}
+<tr><td>{{ r.index }}</td><td>{{ 'ok' if r.ok else 'mislukt' }}</td>
+<td>{{ r.status or '' }}</td><td>{{ r.error or '' }}</td></tr>
+{% endfor %}
+</table>
+{% endif %}
+
+{% if groups %}
+<form method="post">
+<input type="hidden" name="changeset_hash" value="{{ changeset_hash }}">
+{% for group in groups %}
+<h2>{{ group.label }} ({{ group.rows | length }})</h2>
+{% if group.hint %}<p>{{ group.hint }}</p>{% endif %}
+<table>
+{% for row in group.rows %}
+<tr>
+<td><input type="checkbox" name="op" value="{{ row.index }}" id="op{{ row.index }}"
+     {{ 'checked' if row.checked else '' }}></td>
+<td><label for="op{{ row.index }}">{{ row.kind }}</label></td>
+<td>
+  {% if row.before and row.after %}
+  <div class="side">
+    <div><strong>Nu</strong><br>{{ row.before.when }}<br>{{ row.before.title }}
+      <div class="notes">{{ row.before.notes }}</div></div>
+    <div><strong>Wordt</strong><br>{{ row.after.when }}<br>{{ row.after.title }}
+      <div class="notes">{{ row.after.notes }}</div></div>
+  </div>
+  {% else %}
+  {% set ev = row.after or row.before %}
+  {{ ev.when }}<br>{{ ev.title }}<div class="notes">{{ ev.notes }}</div>
+  {% endif %}
+  {% for c in row.conflicts %}
+  <div class="side banner warn">
+    <div><strong>Deze vonk</strong><br>{{ (row.after or row.before).when }}<br>{{ (row.after or row.before).title }}</div>
+    <div><strong>Mogelijk conflict ({{ c.scope }})</strong><br>{{ c.when }}<br>{{ c.title }}</div>
+  </div>
+  {% endfor %}
+</td>
+</tr>
+{% endfor %}
+</table>
+{% endfor %}
+<button type="submit">Geselecteerde wijzigingen schrijven</button>
+</form>
+{% endif %}
+</body>
+</html>

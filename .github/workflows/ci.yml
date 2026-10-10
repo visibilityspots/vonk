@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install poppler-utils
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+      - name: Install vonk with dev dependencies
+        run: pip install -e '.[dev]'
+      - name: ruff
+        run: ruff check .
+      # default markers only: llm, caldav and net tests need secrets or the live site
+      - name: pytest
+        run: pytest
+
+  # dgoss test + multi-arch build and push to Docker Hub, tags only.
+  # vars.DOCKERHUB_REPOSITORY must be set to `vonk` on the repository.
+  image:
+    needs: tests
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: visibilityspots/github-workflows/.github/workflows/main.yml@main
+    with:
+      platforms: linux/amd64,linux/arm64
+    secrets:
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

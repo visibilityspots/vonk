@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vonk"
+version = "0.1.0"
+description = "Turn the Scouts en Gidsen Tervant vonk PDFs into approved CalDAV calendar events"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx==0.28.1",
+    "caldav==3.4.0",
+    "icalendar==7.3.0",
+    "anthropic==1.13.0",
+    "starlette==1.7.0",
+    "uvicorn==0.54.0",
+    "prometheus-client==0.26.0",
+    "tzdata==2026.5",
+    "jinja2==3.1.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.17.0",
+]
+
+[project.scripts]
+vonk = "vonk.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vonk"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not llm and not caldav and not net' --import-mode=importlib"
+markers = [
+    "llm: real Claude API calls (needs ANTHROPIC_API_KEY, costs money)",
+    "caldav: integration tests against the scratch Baikal calendar vonk-test",
+    "net: read-only calls to the live scoutstervant.be site",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]

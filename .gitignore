@@ -1,0 +1,10 @@
+.omc/
+.venv/
+__pycache__/
+*.db
+tests/fixtures/pdf/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/

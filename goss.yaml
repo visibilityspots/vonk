@@ -1,0 +1,27 @@
+command:
+  pdftotext is installed:
+    exec: pdftotext -v
+    exit-status: 0
+
+  vonk reports its version:
+    exec: vonk --version
+    exit-status: 0
+    stdout:
+      - "vonk "
+
+  vonk runs as an unprivileged user:
+    exec: id -u
+    exit-status: 0
+    stdout:
+      - "1000"
+
+# `vonk serve` is the default command and starts degraded without secrets,
+# which is exactly what dgoss gets: /health must still answer 200
+port:
+  tcp:8080:
+    listening: true
+
+http:
+  http://127.0.0.1:8080/health:
+    status: 200
+    timeout: 5000

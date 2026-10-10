@@ -1,0 +1,49 @@
+{
+  "items": [
+    {
+      "date_span": "2 en 3 oktober",
+      "end_date_span": null,
+      "start_span": null,
+      "end_span": null,
+      "title_span": "Geen scouts dit weekend",
+      "description_span": "Geen scouts dit weekend want het is de jaarlijkse powell party.",
+      "cancelled": true
+    },
+    {
+      "date_span": "Zondag 11 oktober",
+      "end_date_span": null,
+      "start_span": "10u",
+      "end_span": "...",
+      "title_span": "Kaartenverkoop voor kampmenu!",
+      "description_span": "Kaartenverkoop voor kampmenu! Piekfijn uniform verplicht!",
+      "cancelled": false
+    },
+    {
+      "date_span": "Zaterdag 17 oktober",
+      "end_date_span": null,
+      "start_span": null,
+      "end_span": null,
+      "title_span": "jonggivertrophy",
+      "description_span": "We gaan naar de jonggivertrophy, meer informatie zal via whatsapp gecommuniceerd worden.",
+      "cancelled": false
+    },
+    {
+      "date_span": "Zaterdag 24 oktober",
+      "end_date_span": null,
+      "start_span": "18u",
+      "end_span": "....",
+      "title_span": "Dropping",
+      "description_span": null,
+      "cancelled": false
+    },
+    {
+      "date_span": "Zaterdag 31 oktober",
+      "end_date_span": null,
+      "start_span": "14u",
+      "end_span": "17u",
+      "title_span": "ruiltocht in halloween thema",
+      "description_span": "Haal u beste halloweenkostuum maar uit de kast, we doen ruiltocht in halloween thema.",
+      "cancelled": false
+    }
+  ]
+}

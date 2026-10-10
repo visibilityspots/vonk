@@ -1,0 +1,3 @@
+"""vonk: turn the Scouts en Gidsen Tervant vonk PDFs into approved calendar events."""
+
+__version__ = "0.1.0"

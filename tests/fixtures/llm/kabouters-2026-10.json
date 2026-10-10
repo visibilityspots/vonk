@@ -1,0 +1,49 @@
+{
+  "items": [
+    {
+      "date_span": "3/10-4/10",
+      "end_date_span": null,
+      "start_span": null,
+      "end_span": null,
+      "title_span": "Geen scouts dit weekend, want het is Powell Party!",
+      "description_span": null,
+      "cancelled": true
+    },
+    {
+      "date_span": "11/10",
+      "end_date_span": null,
+      "start_span": "14u",
+      "end_span": "17u",
+      "title_span": "bosspel",
+      "description_span": "Vandaag trekken we het bos in! Tijd om te ravotten, te rennen en vooral veel plezier te maken tijdens ons bosspel!",
+      "cancelled": false
+    },
+    {
+      "date_span": "18/10",
+      "end_date_span": null,
+      "start_span": "14u",
+      "end_span": "17u",
+      "title_span": "make-over",
+      "description_span": "Vandaag steken we de handen uit de mouwen en geven we ons lokaal een leuke make-over!",
+      "cancelled": false
+    },
+    {
+      "date_span": "24/10",
+      "end_date_span": null,
+      "start_span": "14u",
+      "end_span": "17u",
+      "title_span": "We worden gedropt",
+      "description_span": "We worden gedropt… vinden we samen de weg terug?",
+      "cancelled": false
+    },
+    {
+      "date_span": "31/10",
+      "end_date_span": null,
+      "start_span": "14u",
+      "end_span": "17u",
+      "title_span": "We gaan koken!",
+      "description_span": "Het is halloweeen, We gaan koken!",
+      "cancelled": false
+    }
+  ]
+}

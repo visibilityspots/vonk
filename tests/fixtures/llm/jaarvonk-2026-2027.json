@@ -1,0 +1,130 @@
+{
+  "items": [
+    {
+      "date_span": "Vrijdag 2 oktober",
+      "end_date_span": null,
+      "start_span": null,
+      "end_span": null,
+      "title_span": "Powell After Work",
+      "description_span": null,
+      "cancelled": false
+    },
+    {
+      "date_span": "Zaterdag 3 oktober",
+      "end_date_span": null,
+      "start_span": null,
+      "end_span": null,
+      "title_span": "Powell party",
+      "description_span": "Geen scouts!",
+      "cancelled": true
+    },
+    {
+      "date_span": "Zondag 18 oktober",
+      "end_date_span": null,
+      "start_span": null,
+      "end_span": null,
+      "title_span": "Jonggiver en Giver trophy",
+      "description_span": null,
+      "cancelled": false
+    },
+    {
+      "date_span": "Zaterdag 24 oktober",
+      "end_date_span": null,
+      "start_span": null,
+      "end_span": null,
+      "title_span": "Dropping",
+      "description_span": null,
+      "cancelled": false
+    },
+    {
+      "date_span": "Zondag 8 november",
+      "end_date_span": null,
+      "start_span": "11u",
+      "end_span": "14u",
+      "title_span": "Kampmenu",
+      "description_span": null,
+      "cancelled": false
+    },
+    {
+      "date_span": "Zaterdag 28 november",
+      "end_date_span": null,
+      "start_span": "14u",
+      "end_span": "…",
+      "title_span": "Minimarkt",
+      "description_span": "Publiek welkom vanaf 16u",
+      "cancelled": false
+    },
+    {
+      "date_span": "Vrijdag 18 december",
+      "end_date_span": null,
+      "start_span": "19u",
+      "end_span": "21u00",
+      "title_span": "Kerstfeestje",
+      "description_span": null,
+      "cancelled": false
+    },
+    {
+      "date_span": "Woensdag 24 december",
+      "end_date_span": null,
+      "start_span": "24u",
+      "end_span": null,
+      "title_span": "Middernachtmis",
+      "description_span": null,
+      "cancelled": false
+    },
+    {
+      "date_span": "Zaterdag 6 februari",
+      "end_date_span": null,
+      "start_span": null,
+      "end_span": null,
+      "title_span": "Eetdag Akaba",
+      "description_span": null,
+      "cancelled": false
+    },
+    {
+      "date_span": "Weekend 20,21februari",
+      "end_date_span": null,
+      "start_span": null,
+      "end_span": null,
+      "title_span": "Kampplanning",
+      "description_span": "Geen scouts!",
+      "cancelled": true
+    },
+    {
+      "date_span": "Zaterdag 10 april",
+      "end_date_span": null,
+      "start_span": null,
+      "end_span": null,
+      "title_span": "Powell Quiz",
+      "description_span": "Avond",
+      "cancelled": false
+    },
+    {
+      "date_span": "Zondag 25 april",
+      "end_date_span": null,
+      "start_span": "14u",
+      "end_span": "17u",
+      "title_span": "Groepsactiviteit",
+      "description_span": null,
+      "cancelled": false
+    },
+    {
+      "date_span": "Vrijdag 28 mei",
+      "end_date_span": null,
+      "start_span": "19u",
+      "end_span": null,
+      "title_span": "Kampinschrijving",
+      "description_span": null,
+      "cancelled": false
+    },
+    {
+      "date_span": "maandag 12 juli",
+      "end_date_span": "donderdag 22 juli 2027",
+      "start_span": null,
+      "end_span": null,
+      "title_span": "Het kamp",
+      "description_span": "Het kamp gaat dit jaar door van maandag 12 juli tot en met donderdag 22 juli 2027.",
+      "cancelled": false
+    }
+  ]
+}
