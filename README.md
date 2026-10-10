@@ -47,7 +47,8 @@ Image: `podman build -t vonk:dev .` then `dgoss run vonk:dev` (see `goss.yaml`).
 ## Configuration
 
 All configuration is environment based; on the cluster it arrives through a Vault template
-from `the service's Vault path`. Empty values and the consul-template string `<no value>` count
+from `the service's Vault path` (service) and `the poll job's Vault path` (poll job: `api_token`,
+`anthropic_api_key`, `takken`), one path per job as the Vault policy requires. Empty values and the consul-template string `<no value>` count
 as missing.
 
 | Env var | Vault key | Used by | Purpose |
@@ -76,8 +77,8 @@ In short:
    repository variable `DOCKERHUB_REPOSITORY` to `vonk`.
 2. Seed the image into the zot registry (see the `cluster runbook` skill).
 3. Create `<nas-share>/vonk/` on the NAS, register `nomad/vonk-volume.hcl`.
-4. Write `the service's Vault path` in Vault and create the DNS record for
-   `vonk.example.internal`.
+4. Write `the service's Vault path` and `the poll job's Vault path` in Vault; `vonk.example.internal`
+   is covered by the internal `*.example.internal` wildcard.
 5. Copy `nomad/vonk.hcl` and `nomad/vonk-poll.hcl` to `<cluster-share>/`, set the image
    tag, run `nomad job run`.
 6. Paste `nomad/prometheus-vonk.rules.yml` into `infrastructure/prometheus.hcl` as a rule
