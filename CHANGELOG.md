@@ -1,0 +1,14 @@
+# Changelog
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [v0.2.0] - 2026-10-11
+### :sparkles: New Features
+- [`a90043f`](https://github.com/visibilityspots/vonk/commit/a90043f04f0dc72b4ca0cbe49e16869ecf6e2d9d) - short event titles "Scouts <name> - <summary>" *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+### :bug: Bug Fixes
+- [`4f2fe9f`](https://github.com/visibilityspots/vonk/commit/4f2fe9fd712a8115087b7aab3d6b19a50cbba8e0) - **nomad**: read poll secrets from the poll job's Vault path *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+[v0.2.0]: https://github.com/visibilityspots/vonk/compare/v0.1.0...v0.2.0
