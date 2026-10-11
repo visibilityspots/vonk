@@ -4,7 +4,7 @@ Covers dates, year inference, the weekday check and times in Europe/Brussels. Al
 interpretation happens here in plain code; the extractor only returns verbatim spans.
 
 Child names never enter this module's output: ``Event.title_activity`` is the activity only.
-``render_title`` applies the ``<kindnaam> scouts: `` prefix when writing to a calendar.
+``render_title`` applies the ``Scouts <kindnaam> - `` prefix when writing to a calendar.
 """
 
 from __future__ import annotations
@@ -345,11 +345,44 @@ def _is_cancelled(span: ExtractedSpan) -> bool:
     return any("geen scouts" in collapse_ws(t).casefold() for t in texts)
 
 
+SUMMARY_MAX_WORDS = 3
+SUMMARY_MAX_CHARS = 30
+CANCELLED_TITLE = "Geen scouts"
+
+
+def clean_summary(summary: object) -> str | None:
+    """The model's short label, or None when it is not a usable 1-3 word title."""
+    if not isinstance(summary, str):
+        return None
+    text = collapse_ws(summary).strip(" .,:;!?\"'")
+    if not text or len(text) > SUMMARY_MAX_CHARS or len(text.split()) > SUMMARY_MAX_WORDS:
+        return None
+    if not re.search(r"[^\W\d_]", text):
+        return None
+    return text[0].upper() + text[1:]
+
+
 def _title(span: ExtractedSpan, cancelled: bool) -> str:
-    title = collapse_ws(span.title_span)
-    if cancelled and "geen scouts" not in title.casefold():
-        return f"Geen scouts ({title})" if title else "Geen scouts"
-    return title
+    """Short calendar title: the model's summary, else the verbatim title.
+
+    A cancellation reads ``Geen scouts (<event>)`` when the text names the event that
+    replaces the activity, else ``Geen scouts``.
+    """
+    short = clean_summary(span.summary) or collapse_ws(span.title_span)
+    if not cancelled:
+        return short
+    if not short or "geen scouts" in short.casefold():
+        return CANCELLED_TITLE
+    return f"{CANCELLED_TITLE} ({short})"
+
+
+def _full_title_note(span: ExtractedSpan, short: str) -> str:
+    """The verbatim title for the notes, when the short title does not already say it."""
+    full = collapse_ws(span.title_span)
+    description = collapse_ws(span.description_span or "")
+    if not full or full.casefold() == short.casefold() or full in description:
+        return ""
+    return full
 
 
 def normalize_span(span: ExtractedSpan, post: VonkPost, scope: Scope, anchor: Anchor) -> Event:
@@ -361,7 +394,8 @@ def normalize_span(span: ExtractedSpan, post: VonkPost, scope: Scope, anchor: An
         warnings.append(times.warning)
     all_day = cancelled or end_date is not None or times.start is None
     source_url = post.pdf_url or post.link
-    notes = [collapse_ws(span.description_span or "")]
+    title = _title(span, cancelled)
+    notes = [_full_title_note(span, title), collapse_ws(span.description_span or "")]
     start = end = None
     end_unknown = False
     if not all_day:
@@ -380,7 +414,7 @@ def normalize_span(span: ExtractedSpan, post: VonkPost, scope: Scope, anchor: An
         start=start,
         end=end,
         all_day=all_day,
-        title_activity=_title(span, cancelled),
+        title_activity=title,
         notes="\n".join(n for n in notes if n),
         source_url=source_url,
         warnings=tuple(warnings),
@@ -422,18 +456,25 @@ def normalize_title(title: str) -> str:
 
 
 def render_title(event: Event, child_names: Mapping[Tak, str]) -> str:
-    """Calendar title: ``<kindnaam> scouts: <activiteit>``, group events ``Scouts: <...>``.
+    """Calendar title: ``Scouts <kindnaam> - <activiteit>``, group events ``Scouts - <...>``.
 
     A tak without a configured child name falls back to the group form.
     """
     tak = Tak(event.scope_key.partition(":")[0]) if event.scope_key else Tak.GROEP
     name = child_names.get(tak) if tak is not Tak.GROEP else None
-    prefix = f"{name} scouts" if name else "Scouts"
-    return f"{prefix}: {event.title_activity}"
+    prefix = f"Scouts {name}" if name else "Scouts"
+    return f"{prefix} - {event.title_activity}"
 
 
 def activity_from_summary(summary: str) -> str:
-    """Inverse of ``render_title``: strip a leading ``... scouts: `` / ``Scouts: `` prefix."""
+    """Inverse of ``render_title``: strip a ``Scouts ... - `` prefix.
+
+    Also strips the pre-0.2 form ``<kindnaam> scouts: `` / ``Scouts: `` that events written
+    by earlier versions still carry.
+    """
+    head, sep, rest = summary.partition(" - ")
+    if sep and head.casefold().startswith("scouts"):
+        return rest.strip()
     head, sep, rest = summary.partition(": ")
     if sep and head.casefold().rstrip().endswith("scouts"):
         return rest.strip()

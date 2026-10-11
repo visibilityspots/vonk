@@ -146,7 +146,7 @@ def test_schema_is_strict():
     assert OUTPUT_SCHEMA["required"] == ["items"]
     assert SPAN_SCHEMA["additionalProperties"] is False
     assert set(SPAN_SCHEMA["required"]) == set(SPAN_SCHEMA["properties"])
-    assert set(SPAN_SCHEMA["properties"]) == set(span().to_dict())
+    assert set(SPAN_SCHEMA["properties"]) == set(span(summary="Bosspel").to_dict())
     assert PROMPT_VERSION
 
 

@@ -9,7 +9,7 @@ Every type that crosses the internal API (poll job -> service) has ``to_dict()``
 ``HH:MM[:SS]``, datetimes as ISO 8601 with offset.
 
 Personal data rule: nothing in here carries child names. ``Event.title_activity`` is the
-activity only; the ``<kindnaam> scouts: `` prefix is applied when rendering the calendar
+activity only; the ``Scouts <kindnaam> - `` prefix is applied when rendering the calendar
 event, never stored in or hashed from these types.
 """
 
@@ -214,6 +214,9 @@ class ExtractedSpan:
     title_span: str
     description_span: str | None
     cancelled: bool
+    summary: str | None = None
+    """Short label (1-3 words) for the calendar title. The only field that is NOT verbatim:
+    the model writes it. ``normalize`` falls back to ``title_span`` when it is unusable."""
 
     def spans(self) -> tuple[str, ...]:
         """All non-None spans, for the verbatim check."""
@@ -239,7 +242,7 @@ class ExtractedSpan:
             "title_span": self.title_span,
             "description_span": self.description_span,
             "cancelled": self.cancelled,
-        }
+        } | ({"summary": self.summary} if self.summary is not None else {})
 
     @classmethod
     def from_dict(cls, d: Mapping[str, Any]) -> ExtractedSpan:
@@ -251,6 +254,7 @@ class ExtractedSpan:
             title_span=d["title_span"],
             description_span=d.get("description_span"),
             cancelled=bool(d.get("cancelled", False)),
+            summary=d.get("summary"),
         )
 
 
