@@ -54,7 +54,7 @@ EOF2
       }
 
       config {
-        image = "registry.visibilityspots.net/visibilityspots/vonk:v0.1.0"
+        image = "registry.visibilityspots.net/visibilityspots/vonk:v0.2.2"
         args  = ["poll"]
         logging {
           driver = "journald"

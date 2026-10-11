@@ -212,3 +212,11 @@ def test_crlf_in_source_url_is_stripped_not_raised(fake_caldav, make_sink):
     assert "ATTENDEE" not in vevent
     (r,) = make_sink(fake_caldav).apply(cs_of(add(e)), [0])
     assert r.ok
+
+
+def test_report_filters_on_own_uid_domain_server_side(fake_caldav, make_sink):
+    make_sink(fake_caldav).list_own(None)
+    report = next(r for r in fake_caldav.requests if r.method == "REPORT")
+    body = report.content.decode()
+    assert '<C:prop-filter name="UID">' in body
+    assert '<C:text-match collation="i;octet">@vonk.visibilityspots</C:text-match>' in body
