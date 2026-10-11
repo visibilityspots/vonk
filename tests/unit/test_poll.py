@@ -144,10 +144,19 @@ def test_happy_path_posts_desired_events_and_reports_ok():
     assert wp_requests and not any("Authorization" in r.headers for r in wp_requests)
 
 
+def _seen_all() -> list[dict]:
+    sha = {s["post_id"]: s["sha256"] for s in SOURCES}
+    return [{"post_id": p["id"], "modified": p["modified"] + "+02:00", "pdf_sha256": sha[p["id"]]}
+            for p in POSTS if p["id"] in sha]  # fmt: skip
+
+
+def _cache_all(version: str) -> dict:
+    return {(s["sha256"], version): recorded_spans(s["name"]) for s in SOURCES}
+
+
 def test_unchanged_posts_are_skipped_and_reextract_ignores_seen():
-    seen = [{"post_id": p["id"], "modified": p["modified"] + "+02:00", "pdf_sha256": None}
-            for p in POSTS]  # fmt: skip
-    world = FakeWorld(seen=seen)
+    seen = _seen_all()
+    world = FakeWorld(seen=seen, cache=_cache_all(PROMPT_VERSION))
     assert run(world) == 0
     assert world.desired == {}
     assert world.reports[0]["ok"] is True
@@ -156,6 +165,19 @@ def test_unchanged_posts_are_skipped_and_reextract_ignores_seen():
     assert run(world, options=PollOptions(reextract=True)) == 0
     assert len(world.desired) == 3
     assert not any(r.url.path == "/api/seen" for r in world.requests)
+
+
+def test_prompt_version_bump_reprocesses_unchanged_posts():
+    world = FakeWorld(seen=_seen_all(), cache=_cache_all("0000-00-00.0"))
+    assert run(world) == 0
+    assert len(world.desired) == 3
+
+
+def test_seen_without_sha_is_processed_again():
+    seen = [{**p, "pdf_sha256": None} for p in _seen_all()]
+    world = FakeWorld(seen=seen, cache=_cache_all(PROMPT_VERSION))
+    assert run(world) == 0
+    assert len(world.desired) == 3
 
 
 def test_modified_post_is_processed_again():

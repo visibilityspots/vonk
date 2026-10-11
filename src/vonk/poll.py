@@ -82,14 +82,14 @@ class ServiceClient:
     def _fail(method: str, path: str, resp: httpx.Response) -> ServiceError:
         return ServiceError(f"{method} {path}: HTTP {resp.status_code}")
 
-    def seen(self) -> dict[int, datetime]:
-        """post id -> last processed ``modified`` timestamp."""
+    def seen(self) -> dict[int, tuple[datetime, str | None]]:
+        """post id -> (last processed ``modified`` timestamp, PDF sha256)."""
         resp = self._request("GET", "/api/seen")
         if not resp.is_success:
             raise self._fail("GET", "/api/seen", resp)
         try:
             return {
-                int(p["post_id"]): datetime.fromisoformat(p["modified"])
+                int(p["post_id"]): (datetime.fromisoformat(p["modified"]), p.get("pdf_sha256"))
                 for p in resp.json()["posts"]
             }
         except (ValueError, KeyError, TypeError) as exc:
@@ -214,6 +214,15 @@ class PollRun:
         log.info("%s: posted %d events (%d warnings), changeset %s",
                  scope.key, len(events), len(warnings), answer.get("changeset_id"))  # fmt: skip
 
+    def is_current(self, seen: tuple[datetime, str | None] | None, item: Any) -> bool:
+        """True when the post is unchanged AND its PDF was extracted with this prompt version.
+
+        A ``PROMPT_VERSION`` bump thus re-extracts every post once, without ``--reextract``.
+        """
+        if seen is None or seen[0] != item.post.modified or not seen[1]:
+            return False
+        return self.service.cached_spans(seen[1], PROMPT_VERSION) is not None
+
     def run(self) -> int:
         started = self.now()
         try:
@@ -223,7 +232,7 @@ class PollRun:
             for warning in result.warnings:
                 log.warning("ingest: %s", warning)
             for item in result.posts:
-                if seen.get(item.post.id) == item.post.modified:
+                if self.is_current(seen.get(item.post.id), item):
                     continue
                 try:
                     self.process(item)
