@@ -30,6 +30,7 @@ from icalendar import Event as ICalEvent
 
 from vonk.models import (
     LOCATION,
+    UID_DOMAIN,
     X_VONK_DATE,
     X_VONK_SCOPE,
     ChangeSet,
@@ -50,13 +51,19 @@ HTTP_TIMEOUT = 30.0
 
 _NS = {"D": "DAV:", "C": "urn:ietf:params:xml:ns:caldav"}
 
-_REPORT_BODY = """<?xml version="1.0" encoding="utf-8" ?>
+_REPORT_BODY = f"""<?xml version="1.0" encoding="utf-8" ?>
 <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
   <D:prop><D:getetag/><C:calendar-data/></D:prop>
-  <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"/></C:comp-filter>
-  </C:filter>
+  <C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">
+    <C:prop-filter name="UID">
+      <C:text-match collation="i;octet">{UID_DOMAIN}</C:text-match>
+    </C:prop-filter>
+  </C:comp-filter></C:comp-filter></C:filter>
 </C:calendar-query>
 """
+"""Only events whose UID contains the own domain. Without this filter Baikal returns the
+whole calendar: ``gezin`` (1332 events, 1.7 MB) took 40 s, past ``HTTP_TIMEOUT``; with it,
+0.7 s (measured 2026-10-11). ``list_own`` still applies ``is_own_uid`` to every result."""
 
 
 class CalDAVError(RuntimeError):
