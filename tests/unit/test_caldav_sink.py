@@ -61,7 +61,7 @@ def test_timed_event_ics_shape_and_roundtrip():
     assert "DTSTART;TZID=Europe/Brussels:20261025T140000" in ics
     assert "DTEND;TZID=Europe/Brussels:20261025T170000" in ics  # DST day, wall time
     vevent = next(iter(Calendar.from_ical(ics).walk("VEVENT")))
-    assert str(vevent["SUMMARY"]) == "Anna scouts: Dropping"
+    assert str(vevent["SUMMARY"]) == "Scouts Anna - Dropping"
     assert str(vevent["LOCATION"]) == "Scoutslokalen Tervant"
     assert str(vevent["X-VONK-SCOPE"]) == SCOPE and str(vevent["X-VONK-DATE"]) == "2026-10-25"
     own = parse_own(uid, '"e1"', ics)
@@ -74,7 +74,7 @@ def test_all_day_multi_day_uses_exclusive_dtend():
     ics = to_ics(mint_uid(), e, {})
     assert "DTSTART;VALUE=DATE:20270701" in ics and "DTEND;VALUE=DATE:20270711" in ics
     assert "VTIMEZONE" not in ics
-    assert "SUMMARY:Scouts: Kamp" in ics
+    assert "SUMMARY:Scouts - Kamp" in ics
     assert parse_own(mint_uid(), None, ics).event == e
 
 
@@ -142,7 +142,7 @@ def test_412_stops_and_reports_the_rest(fake_caldav, make_sink):
     fake_caldav.seed("own.ics", to_ics(uid, ev(), {}))
     sink = make_sink(fake_caldav)
     (have,) = sink.list_own(None)
-    fake_caldav.edit(uid, lambda v: v.__setitem__("SUMMARY", "Anna scouts: Bowling"))
+    fake_caldav.edit(uid, lambda v: v.__setitem__("SUMMARY", "Scouts Anna - Bowling"))
     ops = (
         Operation(OpKind.UPDATE, uid, have.event, ev(start=time(15))),
         add(ev(10, "Bosspel")),

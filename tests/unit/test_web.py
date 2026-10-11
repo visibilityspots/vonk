@@ -69,7 +69,7 @@ def test_get_renders_without_side_effects(world):
     for _ in range(2):
         page = world.client.get(link)
         assert page.status_code == 200
-        assert "Gewijzigd" in page.text and "Anna scouts: Dropping" in page.text
+        assert "Gewijzigd" in page.text and "Scouts Anna - Dropping" in page.text
     assert {u: e for u, (_, e, _) in world.caldav.by_uid().items()} == etags
     assert [r for r in world.caldav.requests if r.method in ("PUT", "DELETE")] == writes
     assert world.store.get_token(link.split("/")[-1]).used_at is None
@@ -168,7 +168,7 @@ def test_concurrent_double_post_applies_once(world):
 
 def _phone_edit(w, title="Bowling"):
     uid = next(u for u, (_, _, ics) in w.caldav.by_uid().items() if "Dropping" in ics)
-    w.caldav.edit(uid, lambda v: v.__setitem__("SUMMARY", f"Anna scouts: {title}"))
+    w.caldav.edit(uid, lambda v: v.__setitem__("SUMMARY", f"Scouts Anna - {title}"))
     return uid
 
 
@@ -269,7 +269,7 @@ def test_hand_edited_event_is_unticked_and_kept(world):
 
 @pytest.mark.parametrize(
     "prop, value",
-    [("DESCRIPTION", "Bowling, zelf aangepast"), ("SUMMARY", "Anna scouts: Bowling")],
+    [("DESCRIPTION", "Bowling, zelf aangepast"), ("SUMMARY", "Scouts Anna - Bowling")],
 )
 def test_moved_hand_edited_default_approve_creates_no_duplicate(world, prop, value):
     baseline(world)
@@ -306,10 +306,10 @@ def test_child_name_change_is_rename_only(world):
     world.service.sink.child_names = names
     desire(world, [ev(3)], sha="b" * 64)
     page = world.client.get(last_link(world)).text
-    assert "Enkel nieuwe titel (1)" in page and "Annelies scouts: Dropping" in page
+    assert "Enkel nieuwe titel (1)" in page and "Scouts Annelies - Dropping" in page
     assert approve(world).status_code == 200
     (ics,) = [ics for _, _, ics in world.caldav.by_uid().values()]
-    assert "SUMMARY:Annelies scouts: Dropping" in ics
+    assert "SUMMARY:Scouts Annelies - Dropping" in ics
 
 
 def test_possible_conflict_shown_side_by_side(world):

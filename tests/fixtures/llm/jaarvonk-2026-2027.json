@@ -93,10 +93,10 @@
     {
       "date_span": "Zaterdag 10 april",
       "end_date_span": null,
-      "start_span": null,
+      "start_span": "Avond",
       "end_span": null,
       "title_span": "Powell Quiz",
-      "description_span": "Avond",
+      "description_span": null,
       "cancelled": false
     },
     {

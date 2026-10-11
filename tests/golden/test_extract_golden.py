@@ -59,8 +59,10 @@ def test_golden(src, run, client):
     got = [{k: e.to_dict()[k] for k in EXACT} for e in events]
     assert got == [{k: e[k] for k in EXACT} for e in expected], result.warnings
     for event, want in zip(events, expected, strict=True):
-        title = event.title_activity.casefold()
+        # the short title is the model's own summary; the verbatim title is in the notes
+        title = f"{event.title_activity}\n{event.notes}".casefold()
         assert any(key.casefold() in title for key in want["title_keys"]), (
             event.title_activity,
             want["title_keys"],
         )
+        assert len(event.title_activity) <= 60, event.title_activity

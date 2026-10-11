@@ -42,7 +42,7 @@ def post(
 
 
 def span(date_span, start=None, end=None, title="Activiteit", desc=None, cancelled=False,
-         end_date=None) -> ExtractedSpan:  # fmt: skip
+         end_date=None, summary=None) -> ExtractedSpan:  # fmt: skip
     return ExtractedSpan(
         date_span=date_span,
         end_date_span=end_date,
@@ -51,6 +51,7 @@ def span(date_span, start=None, end=None, title="Activiteit", desc=None, cancell
         title_span=title,
         description_span=desc,
         cancelled=cancelled,
+        summary=summary,
     )
 
 
@@ -275,7 +276,7 @@ def test_cancelled_and_multiday_are_all_day():
     assert cancelled.all_day and cancelled.start is None and cancelled.end is None
     assert cancelled.title_activity == "Geen scouts (Powell party)"
     geen = normalize([span("11/10", start="14u-17u", title="Geen scouts!")], post(), OKT)[0]
-    assert geen.all_day and geen.title_activity == "Geen scouts!"
+    assert geen.all_day and geen.title_activity == "Geen scouts"
     multi = normalize([span("3/10-4/10", start="14u-17u", title="Weekend")], post(), OKT)[0]
     assert multi.all_day and multi.end_date == date(2026, 10, 4)
 
@@ -297,13 +298,46 @@ def test_source_url_falls_back_to_post_link():
 def test_render_title_and_inverse():
     names = {Tak.JEEVEES: "Kind"}
     ev = normalize([span("11/10", title="Bosspel")], post(), OKT)[0]
-    assert render_title(ev, names) == "Kind scouts: Bosspel"
-    assert render_title(ev, {}) == "Scouts: Bosspel"
+    assert render_title(ev, names) == "Scouts Kind - Bosspel"
+    assert render_title(ev, {}) == "Scouts - Bosspel"
     groep = Event(JAAR.key, date(2026, 10, 24), None, None, None, True, "Dropping", "", "")
-    assert render_title(groep, names) == "Scouts: Dropping"
+    assert render_title(groep, names) == "Scouts - Dropping"
+    assert activity_from_summary("Scouts Kind - Bosspel") == "Bosspel"
+    assert activity_from_summary("Scouts - Dropping") == "Dropping"
+    assert activity_from_summary("Scouts Kind - Make-over - deel 2") == "Make-over - deel 2"
+    # pre-0.2 titles still parse
     assert activity_from_summary("Kind scouts: Bosspel") == "Bosspel"
     assert activity_from_summary("Scouts: Dropping") == "Dropping"
     assert activity_from_summary("Tandarts: 14u") == "Tandarts: 14u"
+    assert activity_from_summary("Zwemmen - 14u") == "Zwemmen - 14u"
+
+
+def test_summary_is_the_short_title_and_full_title_goes_to_notes():
+    long = "geven we ons lokaal een leuke make-over!"
+    ev = normalize([span("18/10", title=long, summary="make-over")], post(), OKT)[0]
+    assert ev.title_activity == "Make-over"
+    assert ev.notes.splitlines()[0] == long
+
+
+@pytest.mark.parametrize(
+    "summary", [None, "", "   ", "...", "123", "een veel te lange samenvatting hier", "x" * 31, 7]
+)
+def test_unusable_summary_falls_back_to_verbatim_title(summary):
+    ev = normalize([span("11/10", title="bosspel", summary=summary)], post(), OKT)[0]
+    assert ev.title_activity == "bosspel"
+    assert not ev.notes.startswith("bosspel")
+
+
+def test_cancelled_title_names_the_replacing_event():
+    def title(t, summary=None):
+        return normalize([span("11/10", title=t, summary=summary, cancelled=True)], post(), OKT)[
+            0
+        ].title_activity
+
+    assert title("Powell party") == "Geen scouts (Powell party)"
+    assert title("Geen scouts, want het is kamp", summary="Kamp") == "Geen scouts (Kamp)"
+    assert title("Geen scouts dit weekend") == "Geen scouts"
+    assert title("Geen scouts dit weekend", summary="Geen scouts") == "Geen scouts"
 
 
 def test_child_names_never_in_events():

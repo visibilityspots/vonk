@@ -1,6 +1,6 @@
 {
   "status": "DRAFT - hand-built from tests/fixtures/text/*.txt, awaiting review by Jan (see expected.README.md)",
-  "compare": "date, end_date, start, end, all_day and end_unknown must match exactly; the normalised title_activity must contain at least one of title_keys (case-insensitive). title_activity is the reference title from tests/fixtures/llm/*.json.",
+  "compare": "date, end_date, start, end, all_day and end_unknown must match exactly; the normalised title_activity must contain at least one of title_keys (case-insensitive). title_activity is the reference title from tests/fixtures/llm/*.json (recorded without a summary, so the verbatim title_span; cancellations render as \"Geen scouts (<event>)\" or \"Geen scouts\").",
   "fixtures": {
     "kabouters-2026-10": {
       "scope": "kabouters:2026-10",
@@ -13,7 +13,7 @@
           "end": null,
           "all_day": true,
           "end_unknown": false,
-          "title_activity": "Geen scouts dit weekend, want het is Powell Party!",
+          "title_activity": "Geen scouts",
           "title_keys": [
             "geen scouts"
           ]
@@ -83,7 +83,7 @@
           "end": null,
           "all_day": true,
           "end_unknown": false,
-          "title_activity": "Geen scouts dit weekend",
+          "title_activity": "Geen scouts",
           "title_keys": [
             "geen scouts"
           ]
@@ -262,16 +262,17 @@
           "end_unknown": false,
           "title_activity": "Geen scouts (Kampplanning)",
           "title_keys": [
-            "kampplanning"
+            "kampplanning",
+            "geen scouts"
           ]
         },
         {
           "date": "2027-04-10",
           "end_date": null,
-          "start": null,
-          "end": null,
-          "all_day": true,
-          "end_unknown": false,
+          "start": "19:00:00",
+          "end": "22:00:00",
+          "all_day": false,
+          "end_unknown": true,
           "title_activity": "Powell Quiz",
           "title_keys": [
             "powell quiz"

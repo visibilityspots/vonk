@@ -3,8 +3,10 @@
 Also runs the regex cross-check of date tokens against the returned events.
 
 The model only *locates* text: every returned field is a substring of the ``pdftotext``
-output. Interpretation (dates, years, times) happens in ``vonk.normalize``. Only the PDF
-text is sent: child names never reach the API (they are applied when rendering events).
+output, except ``summary``, a short label that ``normalize`` sanitises and that never
+replaces the verbatim title (it goes into the notes). Interpretation (dates, years, times)
+happens in ``vonk.normalize``. Only the PDF text is sent: child names never reach the API
+(they are applied when rendering events).
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ from vonk.models import ExtractedSpan, VonkKind
 MODEL = "claude-sonnet-5-5"
 """Latest Sonnet-class model (verified with the claude-api skill, 2026-10-10)."""
 
-PROMPT_VERSION = "2026-10-10.1"
+PROMPT_VERSION = "2026-10-11.1"
 """Bump on any change to the prompts, schema or model: it keys the extraction cache."""
 
 MAX_TOKENS = 16000
@@ -40,6 +42,7 @@ SPAN_SCHEMA: dict[str, Any] = {
         "title_span": {"type": "string"},
         "description_span": _NULLABLE_STRING,
         "cancelled": {"type": "boolean"},
+        "summary": {"type": "string"},
     },
     "required": [
         "date_span",
@@ -49,6 +52,7 @@ SPAN_SCHEMA: dict[str, Any] = {
         "title_span",
         "description_span",
         "cancelled",
+        "summary",
     ],
     "additionalProperties": False,
 }
@@ -72,12 +76,20 @@ Rules for every field:
   (e.g. "donderdag 22 juli" in "van maandag 12 juli tot en met donderdag 22 juli"),
   else null.
 - start_span / end_span: the start and end time as written (e.g. "14u", "17u", "....");
-  null when no time is given. For "14u-17u" use start_span "14u" and end_span "17u".
+  a part of the day such as "Avond" is a start_span too; null when no time is given.
+  For "14u-17u" use start_span "14u" and end_span "17u".
 - title_span: the shortest verbatim text naming the activity (e.g. "Dropping",
   "Powell party", "bosspel"). When there is no name, use the first sentence describing it.
 - description_span: the verbatim description belonging to the item, or null.
 - cancelled: true when the text says there is no activity that day ("Geen scouts").
-  Cancellations are items too: always include them.
+  Cancellations are items too: always include them. A "Geen scouts" remark on the same
+  row or date as a named event belongs to that event: return ONE item with cancelled
+  true and title_span the event name (e.g. "Powell party"), not two items.
+- summary: the ONLY field you write yourself instead of copying. One Dutch word, at most
+  three, naming the activity for a calendar title (e.g. "Bosspel", "Make-over",
+  "Halloweentocht", "Kamp"). Base it on the item's own text only. For a cancellation
+  name the event that replaces the activity (e.g. "Powell party"), or "Geen scouts"
+  when the text names none.
 - Do not invent items. Do not include phone numbers, names of people or e-mail addresses.
 Return JSON matching the schema: {"items": [...]}, in the order they appear in the text.
 """

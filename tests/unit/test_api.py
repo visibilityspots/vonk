@@ -314,7 +314,7 @@ def test_end_to_end_poll_approve_then_second_poll_is_empty(world):
     own = world.caldav.by_uid()
     assert len(own) >= 5
     kab = [ics for _, _, ics in own.values() if "X-VONK-SCOPE:kabouters:2026-10" in ics]
-    assert len(kab) == 5 and all("SUMMARY:Anna scouts: " in ics for ics in kab)
+    assert len(kab) == 5 and all("SUMMARY:Scouts Anna - " in ics for ics in kab)
     assert len(world.store.identity_map()) == len(own)
     assert world.client.get("/metrics").text.count("vonk_pending_changesets 0.0") == 1
 
