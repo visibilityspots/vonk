@@ -6,67 +6,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v0.2.8] - 2026-10-26
 ### :sparkles: New Features
-- [`a7c3a77`](https://github.com/visibilityspots/vonk/commit/a7c3a77592e1a5accff424132ec632a90e95d7df) - **feed**: restyle the subscribe page *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`0c61fb5`](https://github.com/visibilityspots/vonk/commit/0c61fb576373e7893ae6e2121e24783dd24078f9) - **feed**: restyle the subscribe page *(commit by [@visibilityspots](https://github.com/visibilityspots))*
 
 ### :bug: Bug Fixes
-- [`3dbc853`](https://github.com/visibilityspots/vonk/commit/3dbc8539ad50b1f57a39aff3a8235d2387e75141) - **docker**: remove pip from the runtime image *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`2311764`](https://github.com/visibilityspots/vonk/commit/231176431aa29f5036d34cbb438f2715bd318a48) - **docker**: remove pip from the runtime image *(commit by [@visibilityspots](https://github.com/visibilityspots))*
 
 ### :wrench: Chores
-- [`f84b928`](https://github.com/visibilityspots/vonk/commit/f84b9286efd16416c10b9a371bc2bc85336c466d) - **nomad**: bump vonk jobs to v0.2.7 *(commit by [@visibilityspots](https://github.com/visibilityspots))*
-- [`bf17af5`](https://github.com/visibilityspots/vonk/commit/bf17af57cd50c71c04a60f72036001d1cec6b40e) - remove the Nomad job specs from the public repository *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`6bf0c7e`](https://github.com/visibilityspots/vonk/commit/6bf0c7ecfef1381ea33718a14e671a3838e6ef74) - remove the Nomad job specs from the public repository *(commit by [@visibilityspots](https://github.com/visibilityspots))*
 
 
 ## [v0.2.7] - 2026-10-26
 ### :sparkles: New Features
-- [`c71afae`](https://github.com/visibilityspots/vonk/commit/c71afaea1f95bc3c7c5cbbad50535e03918246ae) - **feed**: keep the history, limited to the current scout year *(commit by [@visibilityspots](https://github.com/visibilityspots))*
-
-### :wrench: Chores
-- [`ae05d16`](https://github.com/visibilityspots/vonk/commit/ae05d16f542989af097fc7d90a99a2ca66a579e3) - **nomad**: bump vonk jobs to v0.2.6 *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`61aa73b`](https://github.com/visibilityspots/vonk/commit/61aa73bb8ba56b1f1cec188211cfc44232b191ff) - **feed**: keep the history, limited to the current scout year *(commit by [@visibilityspots](https://github.com/visibilityspots))*
 
 
 ## [v0.2.6] - 2026-10-26
 ### :bug: Bug Fixes
-- [`2997edf`](https://github.com/visibilityspots/vonk/commit/2997edfff4f5b52bb3af214e0dbbf3e5167245de) - cross-check new date layouts, version from pyproject, Android link *(commit by [@visibilityspots](https://github.com/visibilityspots))*
-
-### :wrench: Chores
-- [`f6e3a52`](https://github.com/visibilityspots/vonk/commit/f6e3a52037d24186cfd3b0563db6892b02355ce4) - **nomad**: bump vonk jobs to v0.2.5 *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`ae6dcb4`](https://github.com/visibilityspots/vonk/commit/ae6dcb4b9fa9ebbe2bae90da785d90404c5ec1ad) - cross-check new date layouts, version from pyproject, Android link *(commit by [@visibilityspots](https://github.com/visibilityspots))*
 
 
 ## [v0.2.5] - 2026-10-26
 ### :bug: Bug Fixes
-- [`40e017e`](https://github.com/visibilityspots/vonk/commit/40e017ef2c5e13ce750a26f6e293ff345d8db87e) - **normalize**: read dates without a month and d-m dates *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`2e5a233`](https://github.com/visibilityspots/vonk/commit/2e5a23360dc5b3a77da5c04e2cf1521fdc869983) - **normalize**: read dates without a month and d-m dates *(commit by [@visibilityspots](https://github.com/visibilityspots))*
 
 ### :wrench: Chores
-- [`caedce9`](https://github.com/visibilityspots/vonk/commit/caedce98dcb81f9ab01f35fc7e6288703dfb5e32) - **feed**: serve the ICS feed from gh-pages in this repository *(commit by [@visibilityspots](https://github.com/visibilityspots))*
-- [`287ea08`](https://github.com/visibilityspots/vonk/commit/287ea08bc95c57c5e1662a50f16983b1fb7020fc) - **nomad**: bump vonk jobs to v0.2.4 *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`340fce9`](https://github.com/visibilityspots/vonk/commit/340fce9e7bb13ed2e9d65d54ab5f87821cb5f5be) - **feed**: serve the ICS feed from gh-pages in this repository *(commit by [@visibilityspots](https://github.com/visibilityspots))*
 
 
 ## [v0.2.4] - 2026-10-26
 ### :sparkles: New Features
-- [`3b71728`](https://github.com/visibilityspots/vonk/commit/3b717285363eed05b2d1a011464355e627fb0f46) - **feed**: publish a public ICS feed per tak to GitHub Pages *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`eb9e590`](https://github.com/visibilityspots/vonk/commit/eb9e590a2b5b11df5b8b94373dd41e38d6857ddd) - **feed**: publish a public ICS feed per tak to GitHub Pages *(commit by [@visibilityspots](https://github.com/visibilityspots))*
 
 
 ## [v0.2.3] - 2026-10-26
 ### :bug: Bug Fixes
-- [`5447024`](https://github.com/visibilityspots/vonk/commit/544702465fd37b72bf067d7040c5ee8114d2168b) - **poll**: read image-only vonk PDFs with OCR *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`7de4b29`](https://github.com/visibilityspots/vonk/commit/7de4b29b22f744694d0c4d742ca3685e9737aadb) - **poll**: read image-only vonk PDFs with OCR *(commit by [@visibilityspots](https://github.com/visibilityspots))*
 
 
 ## [v0.2.2] - 2026-10-11
 ### :bug: Bug Fixes
-- [`5497432`](https://github.com/visibilityspots/vonk/commit/5497432a0c0fe81295535ce9b95bc9b0c6ced8af) - filter the CalDAV REPORT on the own UID domain server-side *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`93d50fa`](https://github.com/visibilityspots/vonk/commit/93d50fa40e18a3f8f8a246a91fe94e6b8c8aa962) - filter the CalDAV REPORT on the own UID domain server-side *(commit by [@visibilityspots](https://github.com/visibilityspots))*
 
 
 ## [v0.2.1] - 2026-10-11
 ### :bug: Bug Fixes
-- [`557d15c`](https://github.com/visibilityspots/vonk/commit/557d15cdd8ce0385db664de11c208c25e568ef29) - re-extract seen posts after a prompt version bump *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`7fa6534`](https://github.com/visibilityspots/vonk/commit/7fa65341f285f6d2ee448f0b172bfb549e45cf7d) - re-extract seen posts after a prompt version bump *(commit by [@visibilityspots](https://github.com/visibilityspots))*
 
 
 ## [v0.2.0] - 2026-10-11
 ### :sparkles: New Features
-- [`a90043f`](https://github.com/visibilityspots/vonk/commit/a90043f04f0dc72b4ca0cbe49e16869ecf6e2d9d) - short event titles "Scouts <name> - <summary>" *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`4058ae3`](https://github.com/visibilityspots/vonk/commit/4058ae3da614b24c137e4c2e23cf6ec7b49c6058) - short event titles "Scouts <name> - <summary>" *(commit by [@visibilityspots](https://github.com/visibilityspots))*
 
 ### :bug: Bug Fixes
-- [`4f2fe9f`](https://github.com/visibilityspots/vonk/commit/4f2fe9fd712a8115087b7aab3d6b19a50cbba8e0) - **nomad**: read poll secrets from the poll job's Vault path *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`3445595`](https://github.com/visibilityspots/vonk/commit/344559520035c7e49daff7267ccda8b22b4c62cd) - **nomad**: read poll secrets from the poll job's Vault path *(commit by [@visibilityspots](https://github.com/visibilityspots))*
 
 [v0.2.0]: https://github.com/visibilityspots/vonk/compare/v0.1.0...v0.2.0
 [v0.2.1]: https://github.com/visibilityspots/vonk/compare/v0.2.0...v0.2.1
