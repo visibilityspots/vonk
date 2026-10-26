@@ -14,7 +14,9 @@ RUN useradd --uid 1000 --create-home --shell /usr/sbin/nologin vonk \
 WORKDIR /app
 COPY pyproject.toml ./
 COPY src ./src
-RUN pip install --no-cache-dir .
+# pip is only needed for this install; removing it keeps the base image's pip CVEs out
+RUN pip install --no-cache-dir . \
+    && pip uninstall -y pip
 
 ENV VONK_DB_PATH=/data/vonk.db \
     PYTHONUNBUFFERED=1
