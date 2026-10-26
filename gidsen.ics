@@ -71,6 +71,21 @@ X-VONK-DATE:2026-10-02
 X-VONK-SCOPE:groep:2026-2027
 END:VEVENT
 BEGIN:VEVENT
+SUMMARY:Scouts Gidsen - Powell
+DTSTART;VALUE=DATE:20261003
+DTEND;VALUE=DATE:20261004
+DTSTAMP:20261026T190416Z
+UID:vonk-39a6bdd41e6603755a5b2e25@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/09/oktober-gi
+ dsen-.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/oktober-gidsen-.pd
+ f
+X-VONK-DATE:2026-10-03
+X-VONK-SCOPE:gidsen:2026-10
+END:VEVENT
+BEGIN:VEVENT
 SUMMARY:Scouts - Geen scouts (Powell party)
 DTSTART;VALUE=DATE:20261003
 DTEND;VALUE=DATE:20261004
@@ -84,6 +99,21 @@ URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
  df
 X-VONK-DATE:2026-10-03
 X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Gidsen - Kampmenu
+DTSTART;VALUE=DATE:20261010
+DTEND;VALUE=DATE:20261012
+DTSTAMP:20261026T190416Z
+UID:vonk-828b97ee013bebb8887846c8@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:( info volgt)\nhttps://scoutstervant.be/wp-content/uploads/202
+ 6/09/oktober-gidsen-.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/oktober-gidsen-.pd
+ f
+X-VONK-DATE:2026-10-10
+X-VONK-SCOPE:gidsen:2026-10
 END:VEVENT
 BEGIN:VEVENT
 SUMMARY:Scouts - Jonggivertrophy
@@ -101,6 +131,21 @@ X-VONK-DATE:2026-10-17
 X-VONK-SCOPE:groep:2026-2027
 END:VEVENT
 BEGIN:VEVENT
+SUMMARY:Scouts Gidsen - Giver trophy
+DTSTART;VALUE=DATE:20261018
+DTEND;VALUE=DATE:20261019
+DTSTAMP:20261026T190416Z
+UID:vonk-39a880867589d410b939e244@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:( info volgt)\nhttps://scoutstervant.be/wp-content/uploads/202
+ 6/09/oktober-gidsen-.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/oktober-gidsen-.pd
+ f
+X-VONK-DATE:2026-10-18
+X-VONK-SCOPE:gidsen:2026-10
+END:VEVENT
+BEGIN:VEVENT
 SUMMARY:Scouts - Givertrophy
 DTSTART;VALUE=DATE:20261018
 DTEND;VALUE=DATE:20261019
@@ -116,6 +161,36 @@ X-VONK-DATE:2026-10-18
 X-VONK-SCOPE:groep:2026-2027
 END:VEVENT
 BEGIN:VEVENT
+SUMMARY:Scouts Gidsen - Dag jeugdbeweging
+DTSTART;VALUE=DATE:20261023
+DTEND;VALUE=DATE:20261024
+DTSTAMP:20261026T190416Z
+UID:vonk-ce35ffb0c24320e7b23fc7f9@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Dag van de jeugdbeweging\nhttps://scoutstervant.be/wp-content/
+ uploads/2026/09/oktober-gidsen-.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/oktober-gidsen-.pd
+ f
+X-VONK-DATE:2026-10-23
+X-VONK-SCOPE:gidsen:2026-10
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Gidsen - Dropping
+DTSTART;VALUE=DATE:20261024
+DTEND;VALUE=DATE:20261025
+DTSTAMP:20261026T190416Z
+UID:vonk-dbcb3c6b0e12ab680c88a58d@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:( info volgt)\nhttps://scoutstervant.be/wp-content/uploads/202
+ 6/09/oktober-gidsen-.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/oktober-gidsen-.pd
+ f
+X-VONK-DATE:2026-10-24
+X-VONK-SCOPE:gidsen:2026-10
+END:VEVENT
+BEGIN:VEVENT
 SUMMARY:Scouts - Dropping
 DTSTART;VALUE=DATE:20261024
 DTEND;VALUE=DATE:20261025
@@ -129,6 +204,21 @@ URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
  df
 X-VONK-DATE:2026-10-24
 X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Gidsen - Halloween
+DTSTART;TZID=Europe/Brussels:20261031T140000
+DTEND;TZID=Europe/Brussels:20261031T170000
+DTSTAMP:20261026T190416Z
+UID:vonk-86db57607664b8abd14a1185@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Verkleed\, kom en zie\nhttps://scoutstervant.be/wp-content/upl
+ oads/2026/09/oktober-gidsen-.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/oktober-gidsen-.pd
+ f
+X-VONK-DATE:2026-10-31
+X-VONK-SCOPE:gidsen:2026-10
 END:VEVENT
 BEGIN:VEVENT
 SUMMARY:Scouts Gidsen - Kampmenu
