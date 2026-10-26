@@ -180,20 +180,36 @@ def verify_spans(
 _MONTH_WORDS = (
     "januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december"
 )
-_WEEKDAYS = "maandag|dinsdag|woensdag|donderdag|vrijdag|zaterdag|zondag|weekend"
-_DATE_LED_LINE = re.compile(
-    rf"^\s*(?:(?:{_WEEKDAYS})\s+)?(?:"
+_WEEKDAYS = (
+    "maandag|dinsdag|woensdag|donderdag|vrijdag|zaterdag|zondag|weekend"
+    "|maan|dins|din|woe|don|vrij|zat|zon|ma|di|wo|do|vr|za|zo"
+)
+# A date at the start of a line: day + month name, d/m, d-m (``7-11:``), or a weekday with
+# a bare day (``zat 3 :``, the month is the vonk's). Never a time: ``14-16u``, ``14-16.30u``
+# and ``14:30`` are excluded, a label colon (``7-11:``) is not.
+_DATE_TOKEN = (
+    rf"(?:(?:{_WEEKDAYS})\.?\s+)?(?:"
     rf"\d{{1,2}}(?:\s*(?:,|en|-|–|/|tot)\s*\d{{1,2}})*\s*(?:{_MONTH_WORDS})"
     rf"|\d{{1,2}}/\d{{1,2}}(?:\s*[-–]\s*\d{{1,2}}/\d{{1,2}})?"
-    rf")(?![a-z])",
-    re.IGNORECASE | re.MULTILINE,
+    rf"|\d{{1,2}}-\d{{1,2}}(?![\d/-])(?!\s*[uh]|[.:,]\d)"
+    rf")(?![a-z])"
+    rf"|(?:{_WEEKDAYS})\.?\s+\d{{1,2}}(?![\d/])(?!\s*[uh]|[.:,]\d)"
 )
+_DATE_LED_LINE = re.compile(rf"^\s*(?:{_DATE_TOKEN})", re.IGNORECASE | re.MULTILINE)
+_DATE_CELL = re.compile(rf"\s{{2,}}(?:{_DATE_TOKEN})", re.IGNORECASE)
+"""A further date column on a date-led line (two-column layouts: ``vrijdag 2   zaterdag 3``)."""
 _TIME_COLUMN = re.compile(r"^[\d\s:u.…–\-]*$", re.IGNORECASE)
 
 
 def date_led_lines(text: str) -> list[str]:
-    """Lines that start with a date token (optionally after a weekday)."""
-    return [m.group(0) + text[m.end() :].split("\n", 1)[0] for m in _DATE_LED_LINE.finditer(text)]
+    """Lines that start with a date token (optionally after a weekday), one entry per date
+    column, so a two-column layout counts every date."""
+    out = []
+    for m in _DATE_LED_LINE.finditer(text):
+        line = m.group(0) + text[m.end() :].split("\n", 1)[0]
+        out.append(line)
+        out.extend(c.group(0).strip() for c in _DATE_CELL.finditer(line, len(m.group(0))))
+    return out
 
 
 def activity_rows(text: str) -> int:

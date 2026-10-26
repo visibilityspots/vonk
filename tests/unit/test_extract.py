@@ -23,6 +23,7 @@ from vonk.extract import (
     SPAN_SCHEMA,
     ExtractionError,
     cross_check,
+    date_led_lines,
     extract,
     occurs_verbatim,
     verify_spans,
@@ -188,6 +189,20 @@ def test_extract_reports_dropped_spans_as_warnings():
 
 
 # --- cross-check -------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "count"),
+    [
+        # layouts of the October/November 2026 vonks (gidsen, jins, verkenners, kapoenen)
+        ("zat 3 : Powell\nzat 10 -zon 11 : Kampmenu\nvrij 23 : Dag van de jeugdbeweging", 3),
+        ("7-11: 9u-...\n8-11: 10u30-...\n14-11: 10u-17u", 3),
+        ("vrijdag 2                      zaterdag 3\nzondag 11            zondag 18", 4),
+        ("Zaterdag 7/11\n14-16.30u: knutselen\n14-16u\n14:30 verzamelen", 1),
+    ],
+)
+def test_date_led_lines_real_layouts(text, count):
+    assert len(date_led_lines(text)) == count
 
 
 def test_cross_check_monthly_counts_date_led_lines():

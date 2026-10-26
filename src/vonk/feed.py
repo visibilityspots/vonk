@@ -22,6 +22,7 @@ import html
 import logging
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, time
+from urllib.parse import quote
 
 import httpx
 from icalendar import Calendar
@@ -104,8 +105,14 @@ def pages_url(repo: str) -> str:
     return f"https://{owner.lower()}.github.io/{name}/"
 
 
+def google_url(webcal: str) -> str:
+    """Google Calendar's "add by URL" link; Android has no handler for webcal:// itself."""
+    return "https://calendar.google.com/calendar/render?cid=" + quote(webcal, safe="")
+
+
 def render_index(repo: str, takken: Sequence[Tak]) -> str:
-    """A plain page listing the subscribe links (webcal:// opens the phone's calendar)."""
+    """A plain page listing the subscribe links: webcal:// for Apple devices, a Google
+    Calendar link for Android (webcal:// does nothing there), and the plain URL."""
     base = pages_url(repo)
     rows = []
     for tak in [*takken, Tak.GROEP]:
@@ -113,8 +120,10 @@ def render_index(repo: str, takken: Sequence[Tak]) -> str:
         webcal = "webcal://" + url.removeprefix("https://")
         label = "Hele groep (alleen groepsactiviteiten)" if tak is Tak.GROEP else TAK_NAMES[tak]
         rows.append(
-            f'<li>{html.escape(label)}: <a href="{html.escape(webcal)}">abonneren</a>'
-            f' · <a href="{html.escape(url)}">{html.escape(url)}</a></li>'
+            f'<li>{html.escape(label)}:'
+            f' <a href="{html.escape(webcal)}">iPhone/Mac</a>'
+            f' · <a href="{html.escape(google_url(webcal))}">Google Agenda</a>'
+            f' · <code>{html.escape(url)}</code></li>'
         )
     items = "\n".join(rows)
     return f"""<!doctype html>
@@ -127,8 +136,14 @@ def render_index(repo: str, takken: Sequence[Tak]) -> str:
 <body>
 <h1>Scouts Tervant agenda</h1>
 <p>Activiteiten uit de maandelijkse vonk, automatisch bijgewerkt. Elke tak-agenda bevat
-ook de groepsactiviteiten. Kies "abonneren" op je telefoon, of plak de link in Google
-Calendar onder "Agenda toevoegen &gt; Via URL".</p>
+ook de groepsactiviteiten.</p>
+<ul>
+<li><b>iPhone of Mac</b>: tik op "iPhone/Mac" en bevestig het abonnement.</li>
+<li><b>Android / Google Agenda</b>: tik op "Google Agenda" en kies "Toevoegen". Lukt dat
+niet op je gsm, open de link dan op een computer: de Android-app kan zelf geen agenda via
+een link toevoegen, maar toont hem daarna wel.</li>
+<li><b>Andere agenda</b>: voeg de link onderaan als agenda "via URL" toe.</li>
+</ul>
 <ul>
 {items}
 </ul>

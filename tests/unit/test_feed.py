@@ -67,7 +67,10 @@ def test_tak_feed_holds_its_own_and_the_group_events_only():
     ]
     assert [str(e["SUMMARY"]) for e in events_of(files["jins.ics"])] == ["Scouts - Kerstfeestje"]
     assert [str(e["SUMMARY"]) for e in events_of(files["groep.ics"])] == ["Scouts - Kerstfeestje"]
-    assert "webcal://visibilityspots.github.io/vonk-feed/welpen.ics" in files["index.html"]
+    index = files["index.html"]
+    assert 'href="webcal://visibilityspots.github.io/vonk-feed/welpen.ics"' in index
+    assert ("https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2F"
+            "visibilityspots.github.io%2Fvonk-feed%2Fwelpen.ics") in index  # fmt: skip
 
 
 def test_rendering_is_deterministic_and_uids_are_stable_and_not_own():

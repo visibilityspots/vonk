@@ -79,7 +79,9 @@ display name and is not used for the path.
 
 In short:
 
-1. Tag a semver release; CI runs ruff and pytest, then the shared `github-workflows`
+1. Set `version` in `pyproject.toml` (the only place it lives; `vonk --version` reads it)
+   and tag the same semver release; CI fails a tag that differs. CI runs ruff and pytest,
+   then the shared `github-workflows`
    `main.yml` (dgoss, multi-arch `linux/amd64,linux/arm64` push to Docker Hub). Set the
    repository variable `DOCKERHUB_REPOSITORY` to `vonk`.
 2. Seed the image into the zot registry (see the `cluster runbook` skill).
