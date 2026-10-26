@@ -4,29 +4,45 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Scouts Tervant agenda</title>
+<style>
+:root { --accent: #2e4e4e; --line: #bdd732; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --accent: #bdd732; } }
+body { max-width: 40rem; margin: 0 auto; padding: 2rem 1rem; line-height: 1.6;
+  font-family: Raleway, system-ui, sans-serif; }
+h1 { color: var(--accent); border-bottom: 3px solid var(--line); padding-bottom: .3rem; }
+a { color: var(--accent); }
+ul.feeds { list-style: none; padding: 0; }
+ul.feeds li { padding: .6rem 0; border-bottom: 1px solid #8884; }
+code { font-size: .8rem; opacity: .7; overflow-wrap: anywhere; }
+small { opacity: .7; }
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; opacity: .06;
+  background: var(--accent); --pos: right max(1rem, 50vw - 24rem) bottom 4vh;
+  -webkit-mask: url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cpath%20d%3D%22M50%204C63%2018%2066%2037%2057%2056H43C34%2037%2037%2018%2050%204Z%22/%3E%3Cpath%20d%3D%22M41%2056C27%2060%2012%2053%209%2040%207%2029%2017%2022%2026%2027%2019%2032%2022%2043%2032%2045%2037%2046%2041%2050%2041%2056Z%22/%3E%3Cpath%20d%3D%22M59%2056C73%2060%2088%2053%2091%2040%2093%2029%2083%2022%2074%2027%2081%2032%2078%2043%2068%2045%2063%2046%2059%2050%2059%2056Z%22/%3E%3Crect%20x%3D%2228%22%20y%3D%2256%22%20width%3D%2244%22%20height%3D%227%22%20rx%3D%223%22/%3E%3Cpath%20d%3D%22M45%2063%2050%2096%2055%2063Z%22/%3E%3Cpath%20d%3D%22M41%2063C40%2075%2034%2084%2025%2086%2031%2079%2035%2071%2036%2063Z%22/%3E%3Cpath%20d%3D%22M59%2063C60%2075%2066%2084%2075%2086%2069%2079%2065%2071%2064%2063Z%22/%3E%3C/svg%3E') var(--pos) / min(60vw, 22rem) no-repeat;
+  mask: url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cpath%20d%3D%22M50%204C63%2018%2066%2037%2057%2056H43C34%2037%2037%2018%2050%204Z%22/%3E%3Cpath%20d%3D%22M41%2056C27%2060%2012%2053%209%2040%207%2029%2017%2022%2026%2027%2019%2032%2022%2043%2032%2045%2037%2046%2041%2050%2041%2056Z%22/%3E%3Cpath%20d%3D%22M59%2056C73%2060%2088%2053%2091%2040%2093%2029%2083%2022%2074%2027%2081%2032%2078%2043%2068%2045%2063%2046%2059%2050%2059%2056Z%22/%3E%3Crect%20x%3D%2228%22%20y%3D%2256%22%20width%3D%2244%22%20height%3D%227%22%20rx%3D%223%22/%3E%3Cpath%20d%3D%22M45%2063%2050%2096%2055%2063Z%22/%3E%3Cpath%20d%3D%22M41%2063C40%2075%2034%2084%2025%2086%2031%2079%2035%2071%2036%2063Z%22/%3E%3Cpath%20d%3D%22M59%2063C60%2075%2066%2084%2075%2086%2069%2079%2065%2071%2064%2063Z%22/%3E%3C/svg%3E') var(--pos) / min(60vw, 22rem) no-repeat; }
+</style>
 </head>
 <body>
 <h1>Scouts Tervant agenda</h1>
-<p>Activiteiten uit de maandelijkse vonk, automatisch bijgewerkt. Elke tak-agenda bevat
-ook de groepsactiviteiten.</p>
+<p>Activiteiten uit de maandelijkse vonk, automatisch bijgewerkt. Elke tak-agenda bevat ook
+de groepsactiviteiten.</p>
 <ul>
 <li><b>iPhone of Mac</b>: tik op "iPhone/Mac" en bevestig het abonnement.</li>
 <li><b>Android / Google Agenda</b>: tik op "Google Agenda" en kies "Toevoegen". Lukt dat
 niet op je gsm, open de link dan op een computer: de Android-app kan zelf geen agenda via
 een link toevoegen, maar toont hem daarna wel.</li>
-<li><b>Andere agenda</b>: voeg de link onderaan als agenda "via URL" toe.</li>
+<li><b>Andere agenda</b>: voeg de link als agenda "via URL" toe.</li>
 </ul>
-<ul>
-<li>Kapoenen: <a href="webcal://visibilityspots.github.io/vonk/kapoenen.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fkapoenen.ics">Google Agenda</a> · <code>https://visibilityspots.github.io/vonk/kapoenen.ics</code></li>
-<li>Kabouters: <a href="webcal://visibilityspots.github.io/vonk/kabouters.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fkabouters.ics">Google Agenda</a> · <code>https://visibilityspots.github.io/vonk/kabouters.ics</code></li>
-<li>Welpen: <a href="webcal://visibilityspots.github.io/vonk/welpen.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fwelpen.ics">Google Agenda</a> · <code>https://visibilityspots.github.io/vonk/welpen.ics</code></li>
-<li>Jogi&#x27;s: <a href="webcal://visibilityspots.github.io/vonk/jogis.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fjogis.ics">Google Agenda</a> · <code>https://visibilityspots.github.io/vonk/jogis.ics</code></li>
-<li>Jeevees: <a href="webcal://visibilityspots.github.io/vonk/jeevees.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fjeevees.ics">Google Agenda</a> · <code>https://visibilityspots.github.io/vonk/jeevees.ics</code></li>
-<li>Gidsen: <a href="webcal://visibilityspots.github.io/vonk/gidsen.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fgidsen.ics">Google Agenda</a> · <code>https://visibilityspots.github.io/vonk/gidsen.ics</code></li>
-<li>Verkenners: <a href="webcal://visibilityspots.github.io/vonk/verkenners.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fverkenners.ics">Google Agenda</a> · <code>https://visibilityspots.github.io/vonk/verkenners.ics</code></li>
-<li>Jins: <a href="webcal://visibilityspots.github.io/vonk/jins.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fjins.ics">Google Agenda</a> · <code>https://visibilityspots.github.io/vonk/jins.ics</code></li>
-<li>Hele groep (alleen groepsactiviteiten): <a href="webcal://visibilityspots.github.io/vonk/groep.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fgroep.ics">Google Agenda</a> · <code>https://visibilityspots.github.io/vonk/groep.ics</code></li>
+<ul class="feeds">
+<li><b>Kapoenen</b><br><a href="webcal://visibilityspots.github.io/vonk/kapoenen.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fkapoenen.ics">Google Agenda</a><br><code>https://visibilityspots.github.io/vonk/kapoenen.ics</code></li>
+<li><b>Kabouters</b><br><a href="webcal://visibilityspots.github.io/vonk/kabouters.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fkabouters.ics">Google Agenda</a><br><code>https://visibilityspots.github.io/vonk/kabouters.ics</code></li>
+<li><b>Welpen</b><br><a href="webcal://visibilityspots.github.io/vonk/welpen.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fwelpen.ics">Google Agenda</a><br><code>https://visibilityspots.github.io/vonk/welpen.ics</code></li>
+<li><b>Jogi&#x27;s</b><br><a href="webcal://visibilityspots.github.io/vonk/jogis.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fjogis.ics">Google Agenda</a><br><code>https://visibilityspots.github.io/vonk/jogis.ics</code></li>
+<li><b>Jeevees</b><br><a href="webcal://visibilityspots.github.io/vonk/jeevees.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fjeevees.ics">Google Agenda</a><br><code>https://visibilityspots.github.io/vonk/jeevees.ics</code></li>
+<li><b>Gidsen</b><br><a href="webcal://visibilityspots.github.io/vonk/gidsen.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fgidsen.ics">Google Agenda</a><br><code>https://visibilityspots.github.io/vonk/gidsen.ics</code></li>
+<li><b>Verkenners</b><br><a href="webcal://visibilityspots.github.io/vonk/verkenners.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fverkenners.ics">Google Agenda</a><br><code>https://visibilityspots.github.io/vonk/verkenners.ics</code></li>
+<li><b>Jins</b><br><a href="webcal://visibilityspots.github.io/vonk/jins.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fjins.ics">Google Agenda</a><br><code>https://visibilityspots.github.io/vonk/jins.ics</code></li>
+<li><b>Hele groep (alleen groepsactiviteiten)</b><br><a href="webcal://visibilityspots.github.io/vonk/groep.ics">iPhone/Mac</a> · <a href="https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2Fvisibilityspots.github.io%2Fvonk%2Fgroep.ics">Google Agenda</a><br><code>https://visibilityspots.github.io/vonk/groep.ics</code></li>
 </ul>
-<p>Geen officiële dienst van de scouts: bij twijfel geldt de vonk zelf.</p>
+<p><small>Geen officiële dienst van de scouts: bij twijfel geldt de vonk zelf.</small></p>
 </body>
 </html>
