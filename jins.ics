@@ -162,7 +162,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts Jins - Groenten snijden
 DTSTART;TZID=Europe/Brussels:20261107T090000
 DTEND;TZID=Europe/Brussels:20261107T120000
-DTSTAMP:20261026T190425Z
+DTSTAMP:20261026T192530Z
 UID:vonk-e243100a03be98b0955f5d6a@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:@de kring\neinduur onbekend\nhttps://scoutstervant.be/wp-conte
@@ -176,7 +176,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts Jins - Kampmenu
 DTSTART;TZID=Europe/Brussels:20261108T103000
 DTEND;TZID=Europe/Brussels:20261108T133000
-DTSTAMP:20261026T190425Z
+DTSTAMP:20261026T192530Z
 UID:vonk-efdf922366c2debc18c0036f@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:@de kring lunchpakket!!!\neinduur onbekend\nhttps://scoutsterv
@@ -205,7 +205,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts Jins - Belangrijk
 DTSTART;TZID=Europe/Brussels:20261114T100000
 DTEND;TZID=Europe/Brussels:20261114T170000
-DTSTAMP:20261026T190425Z
+DTSTAMP:20261026T192530Z
 UID:vonk-2422742bf7fd3d9369882b81@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:belangrijkkk!!!\nhttps://scoutstervant.be/wp-content/uploads/2
@@ -219,7 +219,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts Jins - Kikakoken
 DTSTART;TZID=Europe/Brussels:20261122T140000
 DTEND;TZID=Europe/Brussels:20261122T170000
-DTSTAMP:20261026T190425Z
+DTSTAMP:20261026T192530Z
 UID:vonk-570bffbc72c4eaddc49d2aa1@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:ki ka koken\nhttps://scoutstervant.be/wp-content/uploads/2026/
@@ -248,7 +248,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts Jins - Minimarkt
 DTSTART;TZID=Europe/Brussels:20261128T140000
 DTEND;TZID=Europe/Brussels:20261128T170000
-DTSTAMP:20261026T190425Z
+DTSTAMP:20261026T192530Z
 UID:vonk-68ff4e5e7549327addf96e75@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:einduur onbekend\nhttps://scoutstervant.be/wp-content/uploads/
