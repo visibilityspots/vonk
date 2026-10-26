@@ -27,6 +27,7 @@ import html
 import logging
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, date, datetime, time
+from string import Template
 from urllib.parse import quote
 
 import httpx
@@ -132,9 +133,67 @@ def google_url(webcal: str) -> str:
     return "https://calendar.google.com/calendar/render?cid=" + quote(webcal, safe="")
 
 
+_LILY_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+    '<path d="M50 4C63 18 66 37 57 56H43C34 37 37 18 50 4Z"/>'
+    '<path d="M41 56C27 60 12 53 9 40 7 29 17 22 26 27 19 32 22 43 32 45 37 46 41 50 41 56Z"/>'
+    '<path d="M59 56C73 60 88 53 91 40 93 29 83 22 74 27 81 32 78 43 68 45 63 46 59 50 59 56Z"/>'
+    '<rect x="28" y="56" width="44" height="7" rx="3"/>'
+    '<path d="M45 63 50 96 55 63Z"/>'
+    '<path d="M41 63C40 75 34 84 25 86 31 79 35 71 36 63Z"/>'
+    '<path d="M59 63C60 75 66 84 75 86 69 79 65 71 64 63Z"/>'
+    "</svg>"
+)
+LILY = "url('data:image/svg+xml," + quote(_LILY_SVG) + "')"
+"""Fleur-de-lis watermark, drawn for this page (not the WOSM emblem)."""
+
+INDEX_TEMPLATE = Template("""<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scouts Tervant agenda</title>
+<style>
+:root { --accent: #2e4e4e; --line: #bdd732; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --accent: #bdd732; } }
+body { max-width: 40rem; margin: 0 auto; padding: 2rem 1rem; line-height: 1.6;
+  font-family: Raleway, system-ui, sans-serif; }
+h1 { color: var(--accent); border-bottom: 3px solid var(--line); padding-bottom: .3rem; }
+a { color: var(--accent); }
+ul.feeds { list-style: none; padding: 0; }
+ul.feeds li { padding: .6rem 0; border-bottom: 1px solid #8884; }
+code { font-size: .8rem; opacity: .7; overflow-wrap: anywhere; }
+small { opacity: .7; }
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; opacity: .06;
+  background: var(--accent); --pos: right max(1rem, 50vw - 24rem) bottom 4vh;
+  -webkit-mask: $lily var(--pos) / min(60vw, 22rem) no-repeat;
+  mask: $lily var(--pos) / min(60vw, 22rem) no-repeat; }
+</style>
+</head>
+<body>
+<h1>Scouts Tervant agenda</h1>
+<p>Activiteiten uit de maandelijkse vonk, automatisch bijgewerkt. Elke tak-agenda bevat ook
+de groepsactiviteiten.</p>
+<ul>
+<li><b>iPhone of Mac</b>: tik op "iPhone/Mac" en bevestig het abonnement.</li>
+<li><b>Android / Google Agenda</b>: tik op "Google Agenda" en kies "Toevoegen". Lukt dat
+niet op je gsm, open de link dan op een computer: de Android-app kan zelf geen agenda via
+een link toevoegen, maar toont hem daarna wel.</li>
+<li><b>Andere agenda</b>: voeg de link als agenda "via URL" toe.</li>
+</ul>
+<ul class="feeds">
+$items
+</ul>
+<p><small>Geen officiële dienst van de scouts: bij twijfel geldt de vonk zelf.</small></p>
+</body>
+</html>
+""")
+
+
 def render_index(repo: str, takken: Sequence[Tak]) -> str:
     """A plain page listing the subscribe links: webcal:// for Apple devices, a Google
-    Calendar link for Android (webcal:// does nothing there), and the plain URL."""
+    Calendar link for Android (webcal:// does nothing there), and the plain URL. Accent
+    colours follow scoutstervant.be; no external fonts or scripts."""
     base = pages_url(repo)
     rows = []
     for tak in [*takken, Tak.GROEP]:
@@ -142,37 +201,12 @@ def render_index(repo: str, takken: Sequence[Tak]) -> str:
         webcal = "webcal://" + url.removeprefix("https://")
         label = "Hele groep (alleen groepsactiviteiten)" if tak is Tak.GROEP else TAK_NAMES[tak]
         rows.append(
-            f'<li>{html.escape(label)}:'
-            f' <a href="{html.escape(webcal)}">iPhone/Mac</a>'
-            f' · <a href="{html.escape(google_url(webcal))}">Google Agenda</a>'
-            f' · <code>{html.escape(url)}</code></li>'
+            f"<li><b>{html.escape(label)}</b><br>"
+            f'<a href="{html.escape(webcal)}">iPhone/Mac</a>'
+            f' · <a href="{html.escape(google_url(webcal))}">Google Agenda</a><br>'
+            f"<code>{html.escape(url)}</code></li>"
         )
-    items = "\n".join(rows)
-    return f"""<!doctype html>
-<html lang="nl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Scouts Tervant agenda</title>
-</head>
-<body>
-<h1>Scouts Tervant agenda</h1>
-<p>Activiteiten uit de maandelijkse vonk, automatisch bijgewerkt. Elke tak-agenda bevat
-ook de groepsactiviteiten.</p>
-<ul>
-<li><b>iPhone of Mac</b>: tik op "iPhone/Mac" en bevestig het abonnement.</li>
-<li><b>Android / Google Agenda</b>: tik op "Google Agenda" en kies "Toevoegen". Lukt dat
-niet op je gsm, open de link dan op een computer: de Android-app kan zelf geen agenda via
-een link toevoegen, maar toont hem daarna wel.</li>
-<li><b>Andere agenda</b>: voeg de link onderaan als agenda "via URL" toe.</li>
-</ul>
-<ul>
-{items}
-</ul>
-<p>Geen officiële dienst van de scouts: bij twijfel geldt de vonk zelf.</p>
-</body>
-</html>
-"""
+    return INDEX_TEMPLATE.substitute(items="\n".join(rows), lily=LILY)
 
 
 def build_feed(
