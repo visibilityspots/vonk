@@ -67,7 +67,7 @@ as missing.
 | `FEED_TAKKEN` | (in the job) | serve, poll | takken in the public feed: `all` or a list; empty = no feed |
 | `VONK_FEED_REPO` | (in the job) | serve | `owner/repo` of the GitHub Pages repository |
 | `VONK_FEED_TOKEN` | `feed_token` | serve | fine-grained GitHub token, that repository only, `contents: write` |
-| `VONK_FEED_BRANCH` | (default `main`) | serve | branch GitHub Pages serves |
+| `VONK_FEED_BRANCH` | (in the job: `gh-pages`) | serve | branch GitHub Pages serves (default `main`) |
 | `VONK_API_URL` | (in the job) | poll | service base URL, without `/api` |
 
 `BAIKAL_CALENDAR` is the calendar collection name under `calendars/<BAIKAL_USER>/`, not the
@@ -96,7 +96,7 @@ In short:
 
 ## Public ICS feed
 
-`https://visibilityspots.github.io/vonk-feed/` lists one calendar per tak
+`https://visibilityspots.github.io/vonk/` (branch `gh-pages` of this repository) lists one calendar per tak
 (`<tak>.ics`: that tak plus the group-wide events) and `groep.ics` (group-wide only).
 
 - Every tak in `FEED_TAKKEN` is polled and extracted, but only the family's own takken get
