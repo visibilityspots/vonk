@@ -8,3 +8,6 @@ tests/fixtures/pdf/
 *.egg-info/
 dist/
 build/
+
+# Nomad job specs live on the private cluster share, never in this public repo
+nomad/

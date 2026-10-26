@@ -81,7 +81,7 @@ TRACKED = tracked_files()
 
 def test_scan_covers_the_repo_and_skips_ignored_planning_docs():
     rel = {p.relative_to(REPO).as_posix() for p in TRACKED}
-    assert {"README.md", "IDEA.md", "nomad/vonk.hcl", "src/vonk/notify.py"} <= rel
+    assert {"README.md", "IDEA.md", "src/vonk/notify.py"} <= rel
     assert not any(r.startswith(".omc/") for r in rel)
 
 

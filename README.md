@@ -21,8 +21,8 @@ for every tak, are also published as a public ICS feed that other parents can su
 
 | Job | Type | Role |
 |---|---|---|
-| `vonk` (`nomad/vonk.hcl`) | service, `count = 1` | Approve page, bearer-authenticated internal API, `/health`, `/metrics`. Sole owner of SQLite (identity, state, extraction cache, tokens) and of every CalDAV write. |
-| `vonk-poll` (`nomad/vonk-poll.hcl`) | periodic batch, every 6 hours | Stateless. Extracts and sends results to the service API; always reports back via `/api/poll-report`; exits non-zero on any failure. |
+| `vonk` | service, `count = 1` | Approve page, bearer-authenticated internal API, `/health`, `/metrics`. Sole owner of SQLite (identity, state, extraction cache, tokens) and of every CalDAV write. |
+| `vonk-poll` | periodic batch, every 6 hours | Stateless. Extracts and sends results to the service API; always reports back via `/api/poll-report`; exits non-zero on any failure. |
 
 Both are served from the same image: `vonk serve` (default command) and `vonk poll`. The
 service is reachable on the internal `https` entrypoint only. Without secrets it starts
@@ -85,13 +85,13 @@ In short:
    `main.yml` (dgoss, multi-arch `linux/amd64,linux/arm64` push to Docker Hub). Set the
    repository variable `DOCKERHUB_REPOSITORY` to `vonk`.
 2. Seed the image into the zot registry (see the `cluster runbook` skill).
-3. Create `<nas-share>/vonk/` on the NAS, register `nomad/vonk-volume.hcl`.
+3. Create `<nas-share>/vonk/` on the NAS, register its CSI volume.
 4. Write `the service's Vault path` and `the poll job's Vault path` in Vault; `vonk.example.internal`
    is covered by the internal `*.example.internal` wildcard.
-5. Copy `nomad/vonk.hcl` and `nomad/vonk-poll.hcl` to `<cluster-share>/`, set the image
-   tag, run `nomad job run`.
-6. Paste `nomad/prometheus-vonk.rules.yml` into `infrastructure/prometheus.hcl` as a rule
-   template; redeploy Prometheus and check `/api/v1/rules`.
+5. The job specs live on the private cluster share, not in this repository: set the image
+   tag in `<cluster-share>/vonk.hcl` and `vonk-poll.hcl`, run `nomad job run`.
+6. The alert rules live in `infrastructure/prometheus.hcl` on the same share; redeploy
+   Prometheus and check `/api/v1/rules`.
 7. Verify with a real call (`curl -H 'Host: vonk.example.internal' .../health`,
    `nomad job periodic force vonk-poll`), first against `vonk-test`, then `gezin`; add the
    Argus entries.
