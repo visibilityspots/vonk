@@ -46,13 +46,13 @@ MONTHS: Mapping[str, int] = {
 }  # fmt: skip
 
 WEEKDAYS: Mapping[str, int] = {
-    "maandag": 0, "ma": 0,
-    "dinsdag": 1, "di": 1,
-    "woensdag": 2, "wo": 2,
-    "donderdag": 3, "do": 3,
-    "vrijdag": 4, "vr": 4,
-    "zaterdag": 5, "za": 5,
-    "zondag": 6, "zo": 6,
+    "maandag": 0, "maan": 0, "ma": 0,
+    "dinsdag": 1, "dins": 1, "din": 1, "di": 1,
+    "woensdag": 2, "woe": 2, "wo": 2,
+    "donderdag": 3, "don": 3, "do": 3,
+    "vrijdag": 4, "vrij": 4, "vr": 4,
+    "zaterdag": 5, "zat": 5, "za": 5,
+    "zondag": 6, "zon": 6, "zo": 6,
 }  # fmt: skip
 
 _DUTCH_WEEKDAY = ("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag")
@@ -64,12 +64,15 @@ def _alternation(words: Sequence[str]) -> str:
 
 # One date item: optional weekday, a day, then a numeric month (11/10[/26]) or a month name
 # (11 oktober [2026], 21februari). A bare day (the "2" of "2 en 3 oktober") borrows the month
-# of the next item; it must not be a time (14u) or part of a longer number.
+# of the next item; it must not be a time (14u) or part of a longer number. ``7-11`` is
+# captured as day + ``dmonth`` and only read as a date when that month fits the vonk (see
+# ``_date_items``); otherwise it stays a range of two bare days.
 _DATE_ITEM_RE = re.compile(
     rf"(?:(?P<wd>{_alternation(list(WEEKDAYS))})\.?\s+)?"
     r"(?<![\d/])(?P<day>\d{1,2})"
     r"(?:"
     r"\s*/\s*(?P<nmonth>\d{1,2})(?:\s*/\s*(?P<nyear>\d{4}|\d{2}))?(?![\d/])"
+    rf"|-(?P<dmonth>\d{{1,2}})(?![\d/-])(?!\s*(?:u|h|:|{_alternation(list(MONTHS))}))"
     rf"|\s*(?P<month>{_alternation(list(MONTHS))})\.?(?![a-z])(?:\s+(?P<year>\d{{4}})(?!\d))?"
     r"|(?!\s*(?:u|h|:|\d))"
     r")",
@@ -192,11 +195,32 @@ class _DateItem:
     text: str
 
 
-def _date_items(text: str) -> list[_DateItem]:
+def _anchor_months(anchor: Anchor | None) -> tuple[int, ...]:
+    """Months a ``d-m`` date may name: only the monthly vonk's own month, so ``10-11`` in
+    the October vonk stays a range (10 and 11 October) and is not 10 November."""
+    if anchor is None or anchor.source != "filename":
+        return ()
+    return (anchor.month,)
+
+
+def _date_items(text: str, anchor: Anchor | None = None) -> list[_DateItem]:
+    """Date items in ``text``. With a ``filename`` anchor (a monthly vonk whose month is
+    known), a day without any month takes the anchor month (``zat 3`` in the October vonk)."""
     items: list[_DateItem] = []
     for m in _DATE_ITEM_RE.finditer(text):
+        dmonth = m.group("dmonth")
+        if dmonth and int(dmonth) not in _anchor_months(anchor):
+            # "10-11" outside the vonk's months: a range of two bare days, not a date
+            wd = m.group("wd")
+            weekday = None if wd is None else WEEKDAYS[wd.casefold()]
+            day_text = collapse_ws(m.group(0)).rsplit("-", 1)[0]
+            items.append(_DateItem(int(m.group("day")), None, None, weekday, day_text))
+            items.append(_DateItem(int(dmonth), None, None, None, dmonth))
+            continue
         if m.group("nmonth"):
             month: int | None = int(m.group("nmonth"))
+        elif dmonth:
+            month = int(dmonth)
         elif m.group("month"):
             month = MONTHS[m.group("month").casefold()]
         else:
@@ -225,6 +249,8 @@ def _date_items(text: str) -> list[_DateItem]:
                 year = later.year
             if month is not None and year is not None:
                 break
+        if month is None and anchor is not None and anchor.source == "filename":
+            month = anchor.month
         if month is None:
             continue
         resolved.append(_DateItem(item.day, month, year, item.weekday, item.text))
@@ -238,9 +264,9 @@ def parse_dates(
 
     Raises ValueError when no date can be found or a date does not exist.
     """
-    items = _date_items(date_span)
+    items = _date_items(date_span, anchor)
     if end_date_span:
-        items += _date_items(end_date_span)
+        items += _date_items(end_date_span, anchor)
     if not items:
         raise ValueError(f"geen datum gevonden in {collapse_ws(date_span)!r}")
     warnings: list[str] = []

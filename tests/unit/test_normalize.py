@@ -82,6 +82,39 @@ def test_parse_dates_monthly(text, start, end):
 
 
 @pytest.mark.parametrize(
+    ("text", "month", "start", "end"),
+    [
+        # real date spans from the October/November 2026 vonks of gidsen, verkenners, jins
+        ("zat 3", 10, date(2026, 10, 3), None),
+        ("zat 10 -zon 11", 10, date(2026, 10, 10), date(2026, 10, 11)),
+        ("zon 18", 10, date(2026, 10, 18), None),
+        ("vrijdag 2", 10, date(2026, 10, 2), None),
+        ("zondag 11", 10, date(2026, 10, 11), None),
+        ("7-11", 11, date(2026, 11, 7), None),
+        ("14-11", 11, date(2026, 11, 14), None),
+        # d-m only for the vonk's own month: elsewhere a dash is a range of days
+        ("10-11", 10, date(2026, 10, 10), date(2026, 10, 11)),
+        ("10-11 oktober", 10, date(2026, 10, 10), date(2026, 10, 11)),
+    ],
+)
+def test_day_without_month_takes_the_month_of_the_vonk(text, month, start, end):
+    got_start, got_end, warnings = parse_dates(text, None, Anchor(2026, month, "filename"))
+    assert (got_start, got_end) == (start, end)
+    assert warnings == []
+
+
+def test_day_without_month_needs_a_known_vonk_month():
+    for source in ("post_date", "scout_year"):
+        with pytest.raises(ValueError, match="geen datum"):
+            parse_dates("zat 3", None, Anchor(2026, 10, source))
+
+
+def test_short_weekday_is_checked():
+    _, _, warnings = parse_dates("zon 3", None, Anchor(2026, 10, "filename"))
+    assert len(warnings) == 1 and "weekdag klopt niet" in warnings[0]
+
+
+@pytest.mark.parametrize(
     ("text", "start", "end"),
     [
         ("Weekend       20,21februari", date(2027, 2, 20), date(2027, 2, 21)),
