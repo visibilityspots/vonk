@@ -96,11 +96,24 @@ def to_ics(uid: str, ev: Event, child_names: Mapping[Tak, str], sequence: int = 
     cal = Calendar()
     cal.add("prodid", PRODID)
     cal.add("version", "2.0")
+    vevent = build_vevent(
+        uid, ev, render_title(ev, child_names), dtstamp=datetime.now(UTC), sequence=sequence
+    )
+    cal.add_component(vevent)
+    if event_bounds(ev) is not None:
+        cal.add_missing_timezones()
+    return cal.to_ical().decode("utf-8")
+
+
+def build_vevent(
+    uid: str, ev: Event, summary: str, *, dtstamp: datetime, sequence: int = 0
+) -> ICalEvent:
+    """The VEVENT for ``ev``, shared by the CalDAV sink and the public feed."""
     vevent = ICalEvent()
     vevent.add("uid", uid)
-    vevent.add("dtstamp", datetime.now(UTC))
+    vevent.add("dtstamp", dtstamp)
     vevent.add("sequence", sequence)
-    vevent.add("summary", render_title(ev, child_names))
+    vevent.add("summary", summary)
     if ev.notes:
         vevent.add("description", ev.notes)
     vevent.add("location", LOCATION)
@@ -116,10 +129,7 @@ def to_ics(uid: str, ev: Event, child_names: Mapping[Tak, str], sequence: int = 
         vevent.add("dtend", bounds[1])
     vevent.add(X_VONK_SCOPE, ev.scope_key)
     vevent.add(X_VONK_DATE, ev.date.isoformat())
-    cal.add_component(vevent)
-    if bounds is not None:
-        cal.add_missing_timezones()
-    return cal.to_ical().decode("utf-8")
+    return vevent
 
 
 def _master_vevent(cal: Calendar) -> ICalEvent | None:

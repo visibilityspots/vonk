@@ -275,6 +275,18 @@ class Store:
     def desired_scopes(self) -> list[str]:
         return [r["scope_key"] for r in self._query("SELECT scope_key FROM desired ORDER BY 1")]
 
+    def desired_all(self) -> list[tuple[str, tuple[Event, ...], float]]:
+        """Every scope's desired events with the time they were stored, by scope key."""
+        rows = self._query("SELECT scope_key, events, updated_at FROM desired ORDER BY 1")
+        return [
+            (
+                r["scope_key"],
+                tuple(Event.from_dict(e) for e in json.loads(r["events"])),
+                r["updated_at"],
+            )
+            for r in rows
+        ]
+
     def desired_events_except(self, scope_key: str) -> list[Event]:
         """Desired events of every other scope (``possible_conflict`` candidates)."""
         rows = self._query("SELECT events FROM desired WHERE scope_key<>?", (scope_key,))

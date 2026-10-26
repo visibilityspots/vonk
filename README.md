@@ -1,7 +1,8 @@
 # vonk
 
 Turns the monthly vonk PDFs of Scouts en Gidsen Tervant (scoutstervant.be) into events in a
-family CalDAV calendar, but only after a human has approved the changes.
+family CalDAV calendar, but only after a human has approved the changes. The same events,
+for every tak, are also published as a public ICS feed that other parents can subscribe to.
 
 ## How it works
 
@@ -13,6 +14,8 @@ family CalDAV calendar, but only after a human has approved the changes.
    in the Baikal calendar (UID prefix `vonk-`, domain `@vonk.visibilityspots`).
 3. A non-empty diff is announced through Gotify with a link to an internal approve page.
 4. Only after approval in the browser does the service write the diff over CalDAV.
+5. After every poll report the service renders the public feed from the stored events and
+   pushes the files that changed to GitHub Pages (see [Public ICS feed](#public-ics-feed)).
 
 ### Architecture (one image, two Nomad jobs)
 
@@ -60,7 +63,11 @@ as missing.
 | `CHILD_NAMES` | `child_names` | serve | JSON object `{"<tak>": "<name>"}`, shown on the approve page |
 | `VONK_DB_PATH` | (in the job) | serve | SQLite path, `/data/vonk.db` on the CSI volume |
 | `ANTHROPIC_API_KEY` | `anthropic_api_key` | poll | extraction |
-| `TAKKEN` | `takken` | poll | takken to process, comma separated |
+| `TAKKEN` | `takken` | poll | the family's takken, comma separated; the service uses the `CHILD_NAMES` keys instead |
+| `FEED_TAKKEN` | (in the job) | serve, poll | takken in the public feed: `all` or a list; empty = no feed |
+| `VONK_FEED_REPO` | (in the job) | serve | `owner/repo` of the GitHub Pages repository |
+| `VONK_FEED_TOKEN` | `feed_token` | serve | fine-grained GitHub token, that repository only, `contents: write` |
+| `VONK_FEED_BRANCH` | (default `main`) | serve | branch GitHub Pages serves |
 | `VONK_API_URL` | (in the job) | poll | service base URL, without `/api` |
 
 `BAIKAL_CALENDAR` is the calendar collection name under `calendars/<BAIKAL_USER>/`, not the
@@ -86,6 +93,21 @@ In short:
 7. Verify with a real call (`curl -H 'Host: vonk.example.internal' .../health`,
    `nomad job periodic force vonk-poll`), first against `vonk-test`, then `gezin`; add the
    Argus entries.
+
+## Public ICS feed
+
+`https://visibilityspots.github.io/vonk-feed/` lists one calendar per tak
+(`<tak>.ics`: that tak plus the group-wide events) and `groep.ics` (group-wide only).
+
+- Every tak in `FEED_TAKKEN` is polled and extracted, but only the family's own takken get
+  a ChangeSet; the others are stored for the feed only.
+- No approval: the feed shows what the latest vonk says. Titles are
+  `Scouts <Tak> - <activiteit>`, never a child name; descriptions are the same as in the
+  family calendar (the vonk text is public on scoutstervant.be anyway).
+- UIDs come from scope, date and start time (domain `@feed.vonk.visibilityspots`), so an
+  edited vonk updates the event on subscribed phones instead of duplicating it.
+- Only changed files are committed; a failed publish increments `vonk_feed_errors` and is
+  retried after the next poll. `vonk_feed_last_publish_timestamp` shows the last success.
 
 ## Privacy
 

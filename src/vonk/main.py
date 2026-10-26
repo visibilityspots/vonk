@@ -17,6 +17,7 @@ from starlette.applications import Starlette
 from vonk.api import Service
 from vonk.api import routes as api_routes
 from vonk.config import Settings
+from vonk.feed import GitHubFeedPublisher
 from vonk.metrics import Metrics
 from vonk.models import Sink
 from vonk.notify import GotifyNotifier, Notifier, NullNotifier
@@ -41,6 +42,15 @@ def default_sink(settings: Settings) -> Sink | None:
     return CalDAVSink.from_settings(settings)
 
 
+def default_feed(settings: Settings) -> GitHubFeedPublisher | None:
+    if not settings.feed_enabled:
+        return None
+    assert settings.feed_repo and settings.feed_token
+    return GitHubFeedPublisher(
+        httpx.Client(), settings.feed_repo, settings.feed_token, settings.feed_branch
+    )
+
+
 def default_notifier(settings: Settings) -> Notifier:
     if not (settings.gotify_url and settings.gotify_token):
         return NullNotifier()
@@ -55,6 +65,7 @@ def build_service(
     store: Store | None = None,
     sink: Sink | None = None,
     notifier: Notifier | None = None,
+    feed: GitHubFeedPublisher | None = None,
     clock: Callable[[], float] = time.time,
     use_default_sink: bool = True,
 ) -> Service:
@@ -68,6 +79,7 @@ def build_service(
         sink,
         notifier or default_notifier(settings),
         metrics,
+        feed=feed or default_feed(settings),
         clock=clock,
     )
     metrics.init_from_store(store, clock())

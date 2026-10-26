@@ -10,6 +10,12 @@ Missing values never crash startup: the service starts *degraded* (``/health`` s
 ``missing_secrets("poll")`` itself and exits non-zero.
 
 Secret values and child names are excluded from ``repr`` and from every error message.
+
+The public ICS feed is optional: ``FEED_TAKKEN`` (``all`` or a list like ``TAKKEN``) makes the
+poll fetch those takken too, and the service publishes their events to ``VONK_FEED_REPO``
+without approval. ``TAKKEN`` on the service limits the approve flow (and CalDAV) to the
+family's own takken (the service falls back to the keys of ``CHILD_NAMES``); with neither,
+every scope is proposed as before.
 """
 
 from __future__ import annotations
@@ -28,6 +34,7 @@ Role = Literal["serve", "poll"]
 NO_VALUE = "<no value>"
 
 DEFAULT_DB_PATH = "vonk.db"
+DEFAULT_FEED_BRANCH = "main"
 
 # Env var names required per role. CHILD_NAMES / TAKKEN count as missing when they parse to
 # an empty or invalid value.
@@ -89,7 +96,9 @@ def _parse_child_names(raw: str | None, errors: list[str]) -> dict[Tak, str]:
     return names
 
 
-def _parse_takken(raw: str | None, errors: list[str]) -> tuple[Tak, ...]:
+def _parse_takken(
+    raw: str | None, errors: list[str], name: str = "TAKKEN"
+) -> tuple[Tak, ...]:
     """Parse TAKKEN: comma/whitespace-separated (``kabouters,jeevees``) or a JSON list."""
     if raw is None:
         return ()
@@ -97,10 +106,10 @@ def _parse_takken(raw: str | None, errors: list[str]) -> tuple[Tak, ...]:
         try:
             items = json.loads(raw)
         except json.JSONDecodeError:
-            errors.append("TAKKEN is not valid JSON")
+            errors.append(f"{name} is not valid JSON")
             return ()
         if not isinstance(items, list):
-            errors.append("TAKKEN must be a list")
+            errors.append(f"{name} must be a list")
             return ()
         parts = [str(i) for i in items]
     else:
@@ -112,11 +121,18 @@ def _parse_takken(raw: str | None, errors: list[str]) -> tuple[Tak, ...]:
         try:
             tak = Tak(part)
         except ValueError:
-            errors.append(f"TAKKEN has an unknown tak {part!r}")
+            errors.append(f"{name} has an unknown tak {part!r}")
             continue
         if tak not in takken:
             takken.append(tak)
     return tuple(takken)
+
+
+def _parse_feed_takken(raw: str | None, errors: list[str]) -> tuple[Tak, ...]:
+    """Parse FEED_TAKKEN: ``all`` (every tak), or a list in the TAKKEN format."""
+    if raw is not None and raw.strip().lower() == "all":
+        return tuple(t for t in Tak if t is not Tak.GROEP)
+    return tuple(t for t in _parse_takken(raw, errors, "FEED_TAKKEN") if t is not Tak.GROEP)
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,7 +153,13 @@ class Settings:
     child_names: Mapping[Tak, str] = field(default_factory=dict, repr=False)
     """Tak -> child name. Personal data: only from Vault, never logged."""
     takken: tuple[Tak, ...] = ()
-    """Takken to process (besides the group-wide jaarvonk)."""
+    """Takken of the family: polled, and proposed for CalDAV (besides the jaarvonk)."""
+    feed_takken: tuple[Tak, ...] = ()
+    """Takken published in the public ICS feed (polled too); empty = no feed."""
+    feed_repo: str | None = None
+    """``owner/repo`` of the GitHub Pages repository that serves the feed."""
+    feed_token: str | None = field(default=None, repr=False)
+    feed_branch: str = DEFAULT_FEED_BRANCH
     errors: tuple[str, ...] = ()
     """Parse errors of structured values (messages never contain the values)."""
 
@@ -164,6 +186,10 @@ class Settings:
             vonk_public_url=get("VONK_PUBLIC_URL"),
             child_names=_parse_child_names(get("CHILD_NAMES"), errors),
             takken=_parse_takken(get("TAKKEN"), errors),
+            feed_takken=_parse_feed_takken(get("FEED_TAKKEN"), errors),
+            feed_repo=get("VONK_FEED_REPO"),
+            feed_token=get("VONK_FEED_TOKEN"),
+            feed_branch=get("VONK_FEED_BRANCH") or DEFAULT_FEED_BRANCH,
             errors=tuple(errors),
         )
 
@@ -179,6 +205,24 @@ class Settings:
         if role not in _REQUIRED:
             raise ValueError(f"unknown role {role!r}")
         return [name for name in _REQUIRED[role] if not self._has(name)]
+
+    @property
+    def poll_takken(self) -> tuple[Tak, ...]:
+        """Takken the poll fetches: the family's own plus the public feed's."""
+        return self.takken + tuple(t for t in self.feed_takken if t not in self.takken)
+
+    @property
+    def feed_enabled(self) -> bool:
+        return bool(self.feed_takken and self.feed_repo and self.feed_token)
+
+    def follows(self, tak: Tak) -> bool:
+        """True when ``tak`` goes through the approve flow (CalDAV).
+
+        The family's takken are ``TAKKEN`` or, on the service that has no TAKKEN, the keys
+        of ``CHILD_NAMES``; with neither, every tak is followed (behaviour before the feed).
+        """
+        own = self.takken or tuple(self.child_names)
+        return tak is Tak.GROEP or not own or tak in own
 
     @property
     def degraded(self) -> bool:

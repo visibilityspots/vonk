@@ -37,6 +37,8 @@ from starlette.routing import Route
 
 from vonk.config import Settings
 from vonk.diff import build_changeset
+from vonk.feed import GitHubFeedPublisher, build_feed
+from vonk.ingest import describe_http_error
 from vonk.match import resolve
 from vonk.metrics import Metrics
 from vonk.models import (
@@ -49,6 +51,7 @@ from vonk.models import (
     OwnEvent,
     Scope,
     Sink,
+    Tak,
 )
 from vonk.notify import (
     PRIORITY_HIGH,
@@ -111,6 +114,8 @@ class Service:
         notifier: Notifier,
         metrics: Metrics,
         *,
+        feed: GitHubFeedPublisher | None = None,
+        feed_in_background: bool = True,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.settings = settings
@@ -118,13 +123,30 @@ class Service:
         self.sink = sink
         self.notifier = notifier
         self.metrics = metrics
+        self.feed = feed
+        self.feed_in_background = feed_in_background
         self.clock = clock
         self._locks: dict[str, threading.Lock] = {}
         self._locks_guard = threading.Lock()
+        self._feed_lock = threading.Lock()
 
     @property
     def degraded(self) -> bool:
         return self.settings.degraded or self.sink is None
+
+    def follows(self, scope_key: str) -> bool:
+        """True when ``scope_key`` goes through the approve flow (the family's takken)."""
+        if scope_key == ORPHAN_SCOPE:
+            return True
+        return self.settings.follows(Tak(scope_key.partition(":")[0]))
+
+    def related_events(self, scope_key: str) -> list[Event]:
+        """Desired events of the other followed scopes (``possible_conflict`` candidates)."""
+        return [
+            e
+            for e in self.store.desired_events_except(scope_key)
+            if self.follows(e.scope_key)
+        ]
 
     def lock(self, scope_key: str) -> threading.Lock:
         with self._locks_guard:
@@ -163,7 +185,7 @@ class Service:
             own,
             identity,
             child_names=self.settings.child_names,
-            related_events=self.store.desired_events_except(scope_key),
+            related_events=self.related_events(scope_key),
         )
 
     def _announce(self, cs: ChangeSet, ingest_warnings: Sequence[str]) -> str:
@@ -212,7 +234,10 @@ class Service:
             self.store.put_cache(sha, prompt_version, spans)
             self.store.set_desired(scope_key, events, sha, warnings)
             self.store.set_scope_pdf(scope_key, sha)  # a new PDF clears needs-attention
-            answer = self.propose(scope_key, warnings)
+            if self.follows(scope_key):
+                answer = self.propose(scope_key, warnings)
+            else:  # feed-only tak: stored for the public feed, never proposed for CalDAV
+                answer = {"changeset_id": None, "ops": 0, "feed_only": True}
             self.store.mark_seen(post_id, modified, sha, scope_key)
             if new_post:
                 now = self.clock()
@@ -237,6 +262,38 @@ class Service:
         fresh = self.store.new_warnings(warnings)
         if fresh:
             self.notifier.send(*warnings_message(fresh))
+        if self.feed is not None:
+            if self.feed_in_background:
+                threading.Thread(target=self.publish_feed, name="feed", daemon=True).start()
+            else:
+                self.publish_feed()
+
+    def publish_feed(self) -> list[str]:
+        """Render the public feed from the stored desired events and push what changed.
+
+        Runs after every poll report, so a failed publish is retried by the next poll.
+        A publish that is still running makes this one a no-op.
+        """
+        if self.feed is None or not self._feed_lock.acquire(blocking=False):
+            return []
+        try:
+            files = build_feed(
+                self.store.desired_all(), self.settings.feed_takken, self.feed.repo
+            )
+            changed = self.feed.publish(files)
+        except httpx.HTTPError as exc:
+            self.metrics.feed_errors.inc()
+            log.error("feed publish failed: %s", describe_http_error(exc))
+            return []
+        except (KeyError, ValueError, RuntimeError) as exc:
+            self.metrics.feed_errors.inc()
+            log.error("feed publish failed: %s: %s", type(exc).__name__, exc)
+            return []
+        finally:
+            self._feed_lock.release()
+        self.metrics.feed_last_publish.set(self.clock())
+        log.info("feed: %d files checked, changed: %s", len(files), ", ".join(changed) or "none")
+        return changed
 
     # --- approve flow --------------------------------------------------------------------
 
@@ -255,7 +312,7 @@ class Service:
             changeset=cs,
             ingest_warnings=ingest_warnings,
             needs_attention=self.store.scope_state(cs.scope_key).needs_attention,
-            related=tuple(self.store.desired_events_except(cs.scope_key)),
+            related=tuple(self.related_events(cs.scope_key)),
         )
 
     def _conflict(self, scope_key: str, ingest_warnings: Sequence[str]) -> str:

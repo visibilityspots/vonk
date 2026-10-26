@@ -69,7 +69,7 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
         print("dry-run: needs the Baikal settings and an existing VONK_DB_PATH")
         return 2
     service = Service(settings, Store(settings.vonk_db_path), sink, NullNotifier(), Metrics())
-    scopes = args.scope or service.store.desired_scopes()
+    scopes = args.scope or [s for s in service.store.desired_scopes() if service.follows(s)]
     for scope_key in scopes:
         cs = service.build(scope_key)
         print(f"{scope_key}: {len(cs.ops)} ops")

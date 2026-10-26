@@ -49,6 +49,14 @@ class Metrics:
         self.apply_errors = Counter(
             "vonk_apply_errors", "Failed CalDAV apply operations", registry=r
         )
+        self.feed_last_publish = Gauge(
+            "vonk_feed_last_publish_timestamp",
+            "Unix time the public ICS feed was last published (or found unchanged)",
+            registry=r,
+        )
+        self.feed_errors = Counter(
+            "vonk_feed_errors", "Failed publishes of the public ICS feed", registry=r
+        )
         self.scopes_needing_attention = Gauge(
             "vonk_scopes_needing_attention",
             "Scopes that stopped announcing after repeated conflicts",

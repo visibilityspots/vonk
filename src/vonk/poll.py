@@ -227,7 +227,7 @@ class PollRun:
         started = self.now()
         try:
             seen = {} if self.options.reextract else self.service.seen()
-            result = ingest(self.wp_http, self.settings.takken, self.wp_url)
+            result = ingest(self.wp_http, self.settings.poll_takken, self.wp_url)
             self.warnings.extend(result.warnings)
             for warning in result.warnings:
                 log.warning("ingest: %s", warning)
