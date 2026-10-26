@@ -74,7 +74,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts Gidsen - Powell
 DTSTART;VALUE=DATE:20261003
 DTEND;VALUE=DATE:20261004
-DTSTAMP:20261026T190416Z
+DTSTAMP:20261026T192525Z
 UID:vonk-39a6bdd41e6603755a5b2e25@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/09/oktober-gi
@@ -104,7 +104,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts Gidsen - Kampmenu
 DTSTART;VALUE=DATE:20261010
 DTEND;VALUE=DATE:20261012
-DTSTAMP:20261026T190416Z
+DTSTAMP:20261026T192525Z
 UID:vonk-828b97ee013bebb8887846c8@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:( info volgt)\nhttps://scoutstervant.be/wp-content/uploads/202
@@ -134,7 +134,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts Gidsen - Giver trophy
 DTSTART;VALUE=DATE:20261018
 DTEND;VALUE=DATE:20261019
-DTSTAMP:20261026T190416Z
+DTSTAMP:20261026T192525Z
 UID:vonk-39a880867589d410b939e244@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:( info volgt)\nhttps://scoutstervant.be/wp-content/uploads/202
@@ -164,7 +164,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts Gidsen - Dag jeugdbeweging
 DTSTART;VALUE=DATE:20261023
 DTEND;VALUE=DATE:20261024
-DTSTAMP:20261026T190416Z
+DTSTAMP:20261026T192525Z
 UID:vonk-ce35ffb0c24320e7b23fc7f9@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:Dag van de jeugdbeweging\nhttps://scoutstervant.be/wp-content/
@@ -179,7 +179,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts Gidsen - Dropping
 DTSTART;VALUE=DATE:20261024
 DTEND;VALUE=DATE:20261025
-DTSTAMP:20261026T190416Z
+DTSTAMP:20261026T192525Z
 UID:vonk-dbcb3c6b0e12ab680c88a58d@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:( info volgt)\nhttps://scoutstervant.be/wp-content/uploads/202
@@ -209,7 +209,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts Gidsen - Halloween
 DTSTART;TZID=Europe/Brussels:20261031T140000
 DTEND;TZID=Europe/Brussels:20261031T170000
-DTSTAMP:20261026T190416Z
+DTSTAMP:20261026T192525Z
 UID:vonk-86db57607664b8abd14a1185@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:Verkleed\, kom en zie\nhttps://scoutstervant.be/wp-content/upl
