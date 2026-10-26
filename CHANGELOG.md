@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.6] - 2026-10-26
+### :bug: Bug Fixes
+- [`2997edf`](https://github.com/visibilityspots/vonk/commit/2997edfff4f5b52bb3af214e0dbbf3e5167245de) - cross-check new date layouts, version from pyproject, Android link *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+### :wrench: Chores
+- [`f6e3a52`](https://github.com/visibilityspots/vonk/commit/f6e3a52037d24186cfd3b0563db6892b02355ce4) - **nomad**: bump vonk jobs to v0.2.5 *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+
 ## [v0.2.5] - 2026-10-26
 ### :bug: Bug Fixes
 - [`40e017e`](https://github.com/visibilityspots/vonk/commit/40e017ef2c5e13ce750a26f6e293ff345d8db87e) - **normalize**: read dates without a month and d-m dates *(commit by [@visibilityspots](https://github.com/visibilityspots))*
@@ -46,3 +54,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.2.3]: https://github.com/visibilityspots/vonk/compare/v0.2.2...v0.2.3
 [v0.2.4]: https://github.com/visibilityspots/vonk/compare/v0.2.3...v0.2.4
 [v0.2.5]: https://github.com/visibilityspots/vonk/compare/v0.2.4...v0.2.5
+[v0.2.6]: https://github.com/visibilityspots/vonk/compare/v0.2.5...v0.2.6
