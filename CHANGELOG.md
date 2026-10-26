@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.8] - 2026-10-26
+### :sparkles: New Features
+- [`a7c3a77`](https://github.com/visibilityspots/vonk/commit/a7c3a77592e1a5accff424132ec632a90e95d7df) - **feed**: restyle the subscribe page *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+### :bug: Bug Fixes
+- [`3dbc853`](https://github.com/visibilityspots/vonk/commit/3dbc8539ad50b1f57a39aff3a8235d2387e75141) - **docker**: remove pip from the runtime image *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+### :wrench: Chores
+- [`f84b928`](https://github.com/visibilityspots/vonk/commit/f84b9286efd16416c10b9a371bc2bc85336c466d) - **nomad**: bump vonk jobs to v0.2.7 *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`bf17af5`](https://github.com/visibilityspots/vonk/commit/bf17af57cd50c71c04a60f72036001d1cec6b40e) - remove the Nomad job specs from the public repository *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+
 ## [v0.2.7] - 2026-10-26
 ### :sparkles: New Features
 - [`c71afae`](https://github.com/visibilityspots/vonk/commit/c71afaea1f95bc3c7c5cbbad50535e03918246ae) - **feed**: keep the history, limited to the current scout year *(commit by [@visibilityspots](https://github.com/visibilityspots))*
@@ -64,3 +76,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.2.5]: https://github.com/visibilityspots/vonk/compare/v0.2.4...v0.2.5
 [v0.2.6]: https://github.com/visibilityspots/vonk/compare/v0.2.5...v0.2.6
 [v0.2.7]: https://github.com/visibilityspots/vonk/compare/v0.2.6...v0.2.7
+[v0.2.8]: https://github.com/visibilityspots/vonk/compare/v0.2.7...v0.2.8
