@@ -1,0 +1,435 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//visibilityspots//vonk//NL
+CALSCALE:GREGORIAN
+X-WR-CALNAME:Scouts Tervant - Kapoenen
+X-PUBLISHED-TTL:PT6H
+X-WR-TIMEZONE:Europe/Brussels
+BEGIN:VTIMEZONE
+TZID:Europe/Brussels
+COMMENT:This timezone only works from 1970-01-01 to 2038-01-01.
+BEGIN:STANDARD
+DTSTART:19700101T000000
+TZNAME:CET
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0100
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:19770403T030000
+RDATE:19780402T030000,19790401T030000,19800406T030000,19810329T030000,1982
+ 0328T030000,19830327T030000,19840325T030000,19850331T030000,19860330T03000
+ 0,19870329T030000,19880327T030000,19890326T030000,19900325T030000,19910331
+ T030000,19920329T030000,19930328T030000,19940327T030000,19950326T030000,19
+ 960331T030000,19970330T030000,19980329T030000,19990328T030000,20000326T030
+ 000,20010325T030000,20020331T030000,20030330T030000,20040328T030000,200503
+ 27T030000,20060326T030000,20070325T030000,20080330T030000,20090329T030000,
+ 20100328T030000,20110327T030000,20120325T030000,20130331T030000,20140330T0
+ 30000,20150329T030000,20160327T030000,20170326T030000,20180325T030000,2019
+ 0331T030000,20200329T030000,20210328T030000,20220327T030000,20230326T03000
+ 0,20240331T030000,20250330T030000,20260329T030000,20270328T030000,20280326
+ T030000,20290325T030000,20300331T030000,20310330T030000,20320328T030000,20
+ 330327T030000,20340326T030000,20350325T030000,20360330T030000,20370329T030
+ 000
+TZNAME:CEST
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0200
+END:DAYLIGHT
+BEGIN:STANDARD
+DTSTART:19770925T030000
+RDATE:19781001T030000,19790930T030000,19800928T030000,19810927T030000,1982
+ 0926T030000,19830925T030000,19840930T030000,19850929T030000,19860928T03000
+ 0,19870927T030000,19880925T030000,19890924T030000,19900930T030000,19910929
+ T030000,19920927T030000,19930926T030000,19940925T030000,19950924T030000,19
+ 961027T030000,19971026T030000,19981025T030000,19991031T030000,20001029T030
+ 000,20011028T030000,20021027T030000,20031026T030000,20041031T030000,200510
+ 30T030000,20061029T030000,20071028T030000,20081026T030000,20091025T030000,
+ 20101031T030000,20111030T030000,20121028T030000,20131027T030000,20141026T0
+ 30000,20151025T030000,20161030T030000,20171029T030000,20181028T030000,2019
+ 1027T030000,20201025T030000,20211031T030000,20221030T030000,20231029T03000
+ 0,20241027T030000,20251026T030000,20261025T030000,20271031T030000,20281029
+ T030000,20291028T030000,20301027T030000,20311026T030000,20321031T030000,20
+ 331030T030000,20341029T030000,20351028T030000,20361026T030000,20371025T030
+ 000
+TZNAME:CET
+TZOFFSETFROM:+0200
+TZOFFSETTO:+0100
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+SUMMARY:Scouts - Powell After Work
+DTSTART;VALUE=DATE:20261002
+DTEND;VALUE=DATE:20261003
+DTSTAMP:20261013T160207Z
+UID:vonk-d47fd6ef807f2ac16d48d6cc@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
+ 6-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2026-10-02
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Kapoenen - Geen scouts
+DTSTART;VALUE=DATE:20261002
+DTEND;VALUE=DATE:20261004
+DTSTAMP:20261026T184523Z
+UID:vonk-3d6a98b63ba770e0f829bf29@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Tot volgende week!!\nhttps://scoutstervant.be/wp-content/uploa
+ ds/2026/09/vonk-kapoenen-oktober.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/vonk-kapoenen-okto
+ ber.pdf
+X-VONK-DATE:2026-10-02
+X-VONK-SCOPE:kapoenen:2026-10
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Geen scouts (Powell party)
+DTSTART;VALUE=DATE:20261003
+DTEND;VALUE=DATE:20261004
+DTSTAMP:20261013T160207Z
+UID:vonk-66c0ba1b06af11de581b3242@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Powell party\nhttps://scoutstervant.be/wp-content/uploads/2026
+ /10/Jaarvonk-26-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2026-10-03
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Kapoenen - Eén tegen allen
+DTSTART;TZID=Europe/Brussels:20261011T140000
+DTEND;TZID=Europe/Brussels:20261011T170000
+DTSTAMP:20261026T184523Z
+UID:vonk-6db8d460fd3af83e40c6fefb@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/09/vonk-kapoe
+ nen-oktober.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/vonk-kapoenen-okto
+ ber.pdf
+X-VONK-DATE:2026-10-11
+X-VONK-SCOPE:kapoenen:2026-10
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Jonggivertrophy
+DTSTART;VALUE=DATE:20261017
+DTEND;VALUE=DATE:20261018
+DTSTAMP:20261013T160207Z
+UID:vonk-fd774f251e543836fc12f0e1@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
+ 6-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2026-10-17
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Kapoenen - Halloween knutselen
+DTSTART;TZID=Europe/Brussels:20261017T140000
+DTEND;TZID=Europe/Brussels:20261017T170000
+DTSTAMP:20261026T184523Z
+UID:vonk-967edbddcb1ecf6eb9c98c1d@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/09/vonk-kapoe
+ nen-oktober.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/vonk-kapoenen-okto
+ ber.pdf
+X-VONK-DATE:2026-10-17
+X-VONK-SCOPE:kapoenen:2026-10
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Givertrophy
+DTSTART;VALUE=DATE:20261018
+DTEND;VALUE=DATE:20261019
+DTSTAMP:20261013T160207Z
+UID:vonk-0cae64931cd70818b9d6088d@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
+ 6-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2026-10-18
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Kapoenen - Dag Jeugdbeweging
+DTSTART;VALUE=DATE:20261023
+DTEND;VALUE=DATE:20261024
+DTSTAMP:20261026T184523Z
+UID:vonk-09ac77509ffba3e86a983ddb@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Dag van de Jeugdbeweging\nGa vandaag in je scouts uniform naar
+  school!\nhttps://scoutstervant.be/wp-content/uploads/2026/09/vonk-kapoene
+ n-oktober.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/vonk-kapoenen-okto
+ ber.pdf
+X-VONK-DATE:2026-10-23
+X-VONK-SCOPE:kapoenen:2026-10
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Dropping
+DTSTART;VALUE=DATE:20261024
+DTEND;VALUE=DATE:20261025
+DTSTAMP:20261013T160207Z
+UID:vonk-6713c4f58d0eb89daebad973@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
+ 6-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2026-10-24
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Kapoenen - Dropping
+DTSTART;TZID=Europe/Brussels:20261024T140000
+DTEND;TZID=Europe/Brussels:20261024T170000
+DTSTAMP:20261026T184523Z
+UID:vonk-19ae6e9581c41e5569f320df@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Kan jij de weg vinden? Info volgt nog via Whatsapp\nhttps://sc
+ outstervant.be/wp-content/uploads/2026/09/vonk-kapoenen-oktober.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/vonk-kapoenen-okto
+ ber.pdf
+X-VONK-DATE:2026-10-24
+X-VONK-SCOPE:kapoenen:2026-10
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Kapoenen - Halloween
+DTSTART;TZID=Europe/Brussels:20261031T140000
+DTEND;TZID=Europe/Brussels:20261031T170000
+DTSTAMP:20261026T184523Z
+UID:vonk-370c1acbdbe2d3b946dcedc5@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Trek je engste outfit uit de kast!\nhttps://scoutstervant.be/w
+ p-content/uploads/2026/09/vonk-kapoenen-oktober.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/vonk-kapoenen-okto
+ ber.pdf
+X-VONK-DATE:2026-10-31
+X-VONK-SCOPE:kapoenen:2026-10
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Kapoenen - Sport en spel
+DTSTART;TZID=Europe/Brussels:20261107T140000
+DTEND;TZID=Europe/Brussels:20261107T160000
+DTSTAMP:20261026T184530Z
+UID:vonk-2127f5d77976750f52834abb@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Sport & spel\nhttps://scoutstervant.be/wp-content/uploads/2026
+ /10/vonk-kapoenen-november-2026.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/vonk-kapoenen-nove
+ mber-2026.pdf
+X-VONK-DATE:2026-11-07
+X-VONK-SCOPE:kapoenen:2026-11
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Kampmenu
+DTSTART;TZID=Europe/Brussels:20261108T110000
+DTEND;TZID=Europe/Brussels:20261108T140000
+DTSTAMP:20261013T160207Z
+UID:vonk-43f8e19dd3b36f10501b603f@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
+ 6-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2026-11-08
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Kapoenen - Kookvergadering
+DTSTART;TZID=Europe/Brussels:20261114T140000
+DTEND;TZID=Europe/Brussels:20261114T160000
+DTSTAMP:20261026T184530Z
+UID:vonk-3943c4b4e1b283dd156a0c7d@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/vonk-kapoe
+ nen-november-2026.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/vonk-kapoenen-nove
+ mber-2026.pdf
+X-VONK-DATE:2026-11-14
+X-VONK-SCOPE:kapoenen:2026-11
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Kapoenen - Piratenzoektocht
+DTSTART;TZID=Europe/Brussels:20261122T140000
+DTEND;TZID=Europe/Brussels:20261122T160000
+DTSTAMP:20261026T184530Z
+UID:vonk-4c8ac5c62512c0d11e859fad@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/vonk-kapoe
+ nen-november-2026.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/vonk-kapoenen-nove
+ mber-2026.pdf
+X-VONK-DATE:2026-11-22
+X-VONK-SCOPE:kapoenen:2026-11
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Minimarkt
+DTSTART;TZID=Europe/Brussels:20261128T140000
+DTEND;TZID=Europe/Brussels:20261128T170000
+DTSTAMP:20261013T160207Z
+UID:vonk-f6fb97b4b721799abea63007@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Publiek welkom vanaf 16u\neinduur onbekend\nhttps://scoutsterv
+ ant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2026-11-28
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Kapoenen - Minimarkt
+DTSTART;TZID=Europe/Brussels:20261128T140000
+DTEND;TZID=Europe/Brussels:20261128T160000
+DTSTAMP:20261026T184530Z
+UID:vonk-da2f028276a6689641f55940@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:ouders vanaf 16U 🤗\nhttps://scoutstervant.be/wp-content/upl
+ oads/2026/10/vonk-kapoenen-november-2026.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/vonk-kapoenen-nove
+ mber-2026.pdf
+X-VONK-DATE:2026-11-28
+X-VONK-SCOPE:kapoenen:2026-11
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Kerstfeestje
+DTSTART;TZID=Europe/Brussels:20261218T190000
+DTEND;TZID=Europe/Brussels:20261218T210000
+DTSTAMP:20261013T160207Z
+UID:vonk-074009c01f572af0a53d6e6c@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
+ 6-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2026-12-18
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Middernachtmis
+DTSTART;TZID=Europe/Brussels:20261225T000000
+DTEND;TZID=Europe/Brussels:20261225T030000
+DTSTAMP:20261013T160207Z
+UID:vonk-ea47e21f099094e48084dbbf@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:einduur onbekend\nhttps://scoutstervant.be/wp-content/uploads/
+ 2026/10/Jaarvonk-26-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2026-12-25
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Eetdag Akaba
+DTSTART;VALUE=DATE:20270206
+DTEND;VALUE=DATE:20270207
+DTSTAMP:20261013T160207Z
+UID:vonk-1373bb8acd989f0e307180e7@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
+ 6-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2027-02-06
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Geen scouts (Kampplanning)
+DTSTART;VALUE=DATE:20270220
+DTEND;VALUE=DATE:20270222
+DTSTAMP:20261013T160207Z
+UID:vonk-9bb4c26053536a40a15b5ab0@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Kampplanning\nhttps://scoutstervant.be/wp-content/uploads/2026
+ /10/Jaarvonk-26-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2027-02-20
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Powell Quiz
+DTSTART;TZID=Europe/Brussels:20270410T190000
+DTEND;TZID=Europe/Brussels:20270410T220000
+DTSTAMP:20261013T160207Z
+UID:vonk-e0a0dd634bf08dcf8082a4b4@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:einduur onbekend\nhttps://scoutstervant.be/wp-content/uploads/
+ 2026/10/Jaarvonk-26-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2027-04-10
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Groepsactiviteit
+DTSTART;TZID=Europe/Brussels:20270425T140000
+DTEND;TZID=Europe/Brussels:20270425T170000
+DTSTAMP:20261013T160207Z
+UID:vonk-3d8f1edb174b7dbc867f1ab2@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
+ 6-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2027-04-25
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Kampinschrijving
+DTSTART;TZID=Europe/Brussels:20270528T190000
+DTEND;TZID=Europe/Brussels:20270528T220000
+DTSTAMP:20261013T160207Z
+UID:vonk-cf6cf8ab3579a6ca5278ef0a@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:einduur onbekend\nhttps://scoutstervant.be/wp-content/uploads/
+ 2026/10/Jaarvonk-26-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2027-05-28
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts - Kamp
+DTSTART;VALUE=DATE:20270712
+DTEND;VALUE=DATE:20270723
+DTSTAMP:20261013T160207Z
+UID:vonk-7acac67fc8ba33bcf4d5096e@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Het kamp gaat dit jaar door van maandag 12 juli tot en met don
+ derdag 22 juli 2027.\nhttps://scoutstervant.be/wp-content/uploads/2026/10/
+ Jaarvonk-26-27.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
+ df
+X-VONK-DATE:2027-07-12
+X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+END:VCALENDAR
