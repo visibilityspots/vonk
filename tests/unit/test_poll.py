@@ -11,7 +11,7 @@ import pytest
 from vonk import cli
 from vonk.config import Settings
 from vonk.extract import PROMPT_VERSION, ExtractionError, finalize, parse_output
-from vonk.pdf import PdfError, PdfText
+from vonk.pdf import EmptyPdfError, PdfError, PdfText
 from vonk.poll import PollOptions, cmd_poll, run_poll
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
@@ -262,6 +262,21 @@ def test_pdf_failure_is_reported():
     world = FakeWorld()
     assert run(world, fetch=broken_fetch) == 1
     assert len(world.reports[0]["errors"]) == 3
+
+
+def test_unreadable_pdf_is_a_warning_and_does_not_fail_the_run():
+    def fetch(url):
+        if BY_URL[url]["name"] == "kabouters-2026-10":
+            raise EmptyPdfError("PDF has no text layer and OCR found no text")
+        return fake_fetch(url)
+
+    world = FakeWorld()
+    assert run(world, fetch=fetch) == 0
+    assert set(world.desired) == {"groep:2026-2027", "jeevees:2026-10"}
+    (report,) = world.reports
+    assert report["ok"] is True
+    assert report["errors"] == []
+    assert any(w.startswith("kabouters:2026-10 (post 2677): ") for w in report["warnings"])
 
 
 def test_wordpress_down_fails_the_run():

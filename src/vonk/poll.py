@@ -36,7 +36,7 @@ from vonk.ingest import (
     ingest,
 )
 from vonk.models import Event, ExtractedSpan, Scope, VonkKind, VonkPost
-from vonk.pdf import PdfError, PdfText, fetch_text
+from vonk.pdf import EmptyPdfError, PdfError, PdfText, fetch_text
 
 log = logging.getLogger("vonk.poll")
 
@@ -236,6 +236,10 @@ class PollRun:
                     continue
                 try:
                     self.process(item)
+                except EmptyPdfError as exc:
+                    # an unreadable vonk must not block every later poll; warn once instead
+                    self.warnings.append(f"{item.scope.key} (post {item.post.id}): {exc}")
+                    log.warning("%s: %s", item.scope.key, exc)
                 except (PdfError, ExtractionError) as exc:
                     self.errors.append(f"{item.scope.key} (post {item.post.id}): {exc}")
                     log.error("%s: %s", item.scope.key, exc)

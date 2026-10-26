@@ -1,8 +1,9 @@
 FROM python:3.12-slim
 
-# pdftotext is what turns the vonk PDFs into text before extraction
+# pdftotext turns the vonk PDFs into text before extraction; image-only PDFs go
+# through tesseract (Dutch data) instead
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends poppler-utils \
+    && apt-get install -y --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-nld \
     && rm -rf /var/lib/apt/lists/*
 
 # python:3.12-slim has no user on UID 1000 (checked with getent), unlike node:*-slim

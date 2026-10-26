@@ -1,4 +1,4 @@
-"""PDF download, sha256 and `pdftotext -layout` text extraction."""
+"""PDF download, sha256 and `pdftotext -layout` text extraction, with an OCR fallback."""
 
 from __future__ import annotations
 
@@ -17,18 +17,27 @@ MAX_PDF_BYTES = 25 * 1024 * 1024
 
 DOWNLOAD_TIMEOUT = 60.0
 PDFTOTEXT_TIMEOUT = 60.0
+OCR_TIMEOUT = 120.0
+OCR_DPI = 300
+"""Image-only vonks are low-res JPEG exports; tesseract needs them upscaled to read them."""
+OCR_LANG = "nld"
 
 
 class PdfError(RuntimeError):
     """Download or text extraction of a PDF failed."""
 
 
+class EmptyPdfError(PdfError):
+    """The PDF has no text layer and OCR found no text either."""
+
+
 @dataclass(frozen=True, slots=True)
 class PdfText:
-    """A downloaded PDF: its sha256 (hex) and its ``pdftotext -layout`` output."""
+    """A downloaded PDF: its sha256 (hex) and its ``pdftotext -layout`` (or OCR) output."""
 
     sha256: str
     text: str
+    ocr: bool = False
 
 
 def sha256_hex(data: bytes) -> str:
@@ -96,9 +105,49 @@ def pdftotext(data: bytes, *, timeout: float = PDFTOTEXT_TIMEOUT) -> str:
         return dst.read_text(encoding="utf-8")
 
 
+def _run(cmd: list[str], timeout: float, package: str) -> None:
+    try:
+        proc = subprocess.run(cmd, capture_output=True, timeout=timeout, check=False)
+    except FileNotFoundError as exc:
+        raise PdfError(f"{cmd[0]} not found (install {package})") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise PdfError(f"{cmd[0]} timed out after {timeout}s") from exc
+    if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf-8", "replace").strip()
+        raise PdfError(f"{cmd[0]} exited {proc.returncode}: {stderr}")
+
+
+def ocr(data: bytes, *, dpi: int = OCR_DPI, lang: str = OCR_LANG,
+        timeout: float = OCR_TIMEOUT) -> str:  # fmt: skip
+    """Render every page with ``pdftoppm`` and read it with ``tesseract``; pages split by \\f."""
+    with tempfile.TemporaryDirectory(prefix="vonk-ocr-") as tmp:
+        src = Path(tmp) / "in.pdf"
+        src.write_bytes(data)
+        _run(["pdftoppm", "-r", str(dpi), "-png", str(src), str(Path(tmp) / "page")],
+             timeout, "poppler-utils")  # fmt: skip
+        pages = []
+        for png in sorted(Path(tmp).glob("page-*.png")):
+            out = png.with_suffix("")
+            _run(["tesseract", str(png), str(out), "-l", lang], timeout,
+                 f"tesseract-ocr and tesseract-ocr-{lang}")  # fmt: skip
+            pages.append(out.with_suffix(".txt").read_text(encoding="utf-8"))
+        return "\f".join(pages)
+
+
 def fetch_text(
     client: httpx.Client, url: str, allowed_hosts: frozenset[str] = ALLOWED_HOSTS
 ) -> PdfText:
-    """Download ``url`` and return its sha256 and layout text."""
+    """Download ``url`` and return its sha256 and layout text.
+
+    A PDF without a text layer (a scan or image export) goes through OCR instead; when
+    that finds nothing either, ``EmptyPdfError`` is raised.
+    """
     data = download(client, url, allowed_hosts=allowed_hosts)
-    return PdfText(sha256=sha256_hex(data), text=pdftotext(data))
+    sha256 = sha256_hex(data)
+    text = pdftotext(data)
+    if text.strip():
+        return PdfText(sha256=sha256, text=text)
+    text = ocr(data)
+    if not text.strip():
+        raise EmptyPdfError("PDF has no text layer and OCR found no text")
+    return PdfText(sha256=sha256, text=text, ocr=True)

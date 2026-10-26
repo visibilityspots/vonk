@@ -4,13 +4,25 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import tempfile
+import zlib
 from pathlib import Path
 
 import httpx
 import pytest
 
 from vonk.ingest import host_guard
-from vonk.pdf import PdfError, download, fetch_text, pdftotext, sha256_hex
+from vonk.pdf import (
+    OCR_LANG,
+    EmptyPdfError,
+    PdfError,
+    download,
+    fetch_text,
+    ocr,
+    pdftotext,
+    sha256_hex,
+)
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 
@@ -45,6 +57,63 @@ def make_pdf(text: str) -> bytes:
 PDF = make_pdf("Zaterdag 24 oktober Dropping")
 
 
+def image_pdf(source: bytes) -> bytes:
+    """``source`` rendered to a greyscale bitmap and wrapped in a PDF without any text layer."""
+    with tempfile.TemporaryDirectory() as tmp:
+        src = Path(tmp) / "in.pdf"
+        src.write_bytes(source)
+        subprocess.run(["pdftoppm", "-r", "150", "-gray", "-singlefile", str(src),
+                        str(Path(tmp) / "page")], check=True)  # fmt: skip
+        pgm = (Path(tmp) / "page.pgm").read_bytes()
+    magic, width, height, maxval, pixels = pgm.split(maxsplit=4)
+    assert magic == b"P5" and maxval == b"255"
+    image = zlib.compress(pixels)
+    stream = b"q 612 0 0 792 0 0 cm /Im0 Do Q"
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>",
+        b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream",
+        b"<< /Type /XObject /Subtype /Image /Width %s /Height %s /ColorSpace /DeviceGray "
+        b"/BitsPerComponent 8 /Filter /FlateDecode /Length %d >>\nstream\n"
+        % (width, height, len(image))
+        + image
+        + b"\nendstream",
+    ]
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n" % number + body + b"\nendobj\n"
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
+    for offset in offsets:
+        out += b"%010d 00000 n \n" % offset
+    out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (
+        len(objects) + 1,
+        xref,
+    )
+    return bytes(out)
+
+
+IMAGE_PDF = image_pdf(make_pdf("Zaterdag 24 oktober Dropping"))
+BLANK_PDF = make_pdf("")
+
+
+def _has_ocr_lang(lang: str) -> bool:
+    try:
+        langs = subprocess.run(["tesseract", "--list-langs"], capture_output=True, text=True)
+    except FileNotFoundError:
+        return False
+    return lang in langs.stdout.split()
+
+
+needs_ocr = pytest.mark.skipif(
+    not _has_ocr_lang(OCR_LANG), reason=f"tesseract with {OCR_LANG} data not installed"
+)
+
+
 def _client(handler) -> httpx.Client:
     return httpx.Client(transport=httpx.MockTransport(handler))
 
@@ -73,6 +142,33 @@ def test_fetch_text_downloads_hashes_and_converts():
     assert result.sha256 == hashlib.sha256(PDF).hexdigest()
     assert "Dropping" in result.text
     assert [str(r.url) for r in seen] == ["https://scoutstervant.be/u/vonk.pdf"]
+
+
+@needs_ocr
+def test_image_only_pdf_has_no_text_layer_but_ocr_reads_it():
+    assert pdftotext(IMAGE_PDF).strip() == ""
+    assert "Dropping" in ocr(IMAGE_PDF)
+
+
+@needs_ocr
+def test_fetch_text_falls_back_to_ocr_for_image_only_pdf():
+    client = _client(lambda r: httpx.Response(200, content=IMAGE_PDF))
+    result = fetch_text(client, "https://scoutstervant.be/u/scan.pdf")
+    assert result.ocr is True
+    assert "Dropping" in result.text
+    assert result.sha256 == hashlib.sha256(IMAGE_PDF).hexdigest()
+
+
+def test_fetch_text_keeps_the_text_layer_when_there_is_one():
+    client = _client(lambda r: httpx.Response(200, content=PDF))
+    assert fetch_text(client, "https://scoutstervant.be/u/vonk.pdf").ocr is False
+
+
+@needs_ocr
+def test_fetch_text_raises_empty_pdf_error_when_ocr_finds_nothing():
+    client = _client(lambda r: httpx.Response(200, content=BLANK_PDF))
+    with pytest.raises(EmptyPdfError, match="OCR found no text"):
+        fetch_text(client, "https://scoutstervant.be/u/blank.pdf")
 
 
 def test_download_rejects_declared_oversize():
