@@ -103,6 +103,11 @@ In short:
 
 - Every tak in `FEED_TAKKEN` is polled and extracted, but only the family's own takken get
   a ChangeSet; the others are stored for the feed only.
+- History: every monthly vonk is its own scope (`welpen:2026-11`) and no scope is ever
+  dropped, so the December vonk adds to October and November instead of replacing them.
+- Scout year: the feed holds the current scout year (September to August) and anything
+  later, so an early September vonk appears right away. From 1 September the previous
+  year leaves the feed; SQLite and the family calendar keep it.
 - No approval: the feed shows what the latest vonk says. Titles are
   `Scouts <Tak> - <activiteit>`, never a child name; descriptions are the same as in the
   family calendar (the vonk text is public on scoutstervant.be anyway).

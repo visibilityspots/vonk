@@ -9,6 +9,11 @@ UIDs are derived from scope, date and start time, so a re-extracted vonk updates
 on every subscribed phone instead of duplicating it. Their domain differs from the CalDAV
 one, so ``models.is_own_uid`` never mistakes a feed event for an own event.
 
+History: every monthly vonk is its own scope and no scope is ever dropped from the store,
+so a new vonk only adds events. The feed shows the current scout year (September to
+August) and anything later; from September the previous year leaves the feed (the store
+keeps it).
+
 Publishing goes through the GitHub contents API and only writes files whose content
 changed: ``DTSTAMP`` is the time the scope was stored, so an unchanged vonk renders to the
 same bytes and does not produce a commit.
@@ -21,7 +26,7 @@ import hashlib
 import html
 import logging
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import UTC, datetime, time
+from datetime import UTC, date, datetime, time
 from urllib.parse import quote
 
 import httpx
@@ -57,6 +62,23 @@ StoredScope = tuple[str, Sequence[Event], float]
 
 def scope_tak(scope_key: str) -> Tak:
     return Tak(scope_key.partition(":")[0])
+
+
+SCOUT_YEAR_START_MONTH = 9
+
+
+def scout_year_of(day: date) -> int:
+    """First calendar year of the scout year (September to August) ``day`` falls in."""
+    return day.year if day.month >= SCOUT_YEAR_START_MONTH else day.year - 1
+
+
+def scope_scout_year(scope_key: str) -> int:
+    """Scout year of a scope: ``2026-10`` -> 2026, ``2027-03`` -> 2026, ``2026-2027`` -> 2026."""
+    period = scope_key.partition(":")[2]
+    first, _, second = period.partition("-")
+    if len(second) == 4:  # jaarvonk: YYYY-YYYY
+        return int(first)
+    return scout_year_of(date(int(first), int(second), 1))
 
 
 def feed_title(ev: Event) -> str:
@@ -154,11 +176,18 @@ een link toevoegen, maar toont hem daarna wel.</li>
 
 
 def build_feed(
-    scopes: Sequence[StoredScope], takken: Sequence[Tak], repo: str
+    scopes: Sequence[StoredScope], takken: Sequence[Tak], repo: str, today: date
 ) -> dict[str, str]:
-    """Every feed file by path: ``<tak>.ics`` per tak, ``groep.ics`` and ``index.html``."""
+    """Every feed file by path: ``<tak>.ics`` per tak, ``groep.ics`` and ``index.html``.
+
+    Only scopes of the scout year ``today`` is in, or a later one (a September vonk that
+    appears in August), are published.
+    """
+    current = scout_year_of(today)
     by_tak: dict[Tak, list[tuple[Event, float]]] = {}
     for scope_key, events, stored_at in scopes:
+        if scope_scout_year(scope_key) < current:
+            continue
         by_tak.setdefault(scope_tak(scope_key), []).extend((ev, stored_at) for ev in events)
     group = by_tak.get(Tak.GROEP, [])
     files = {

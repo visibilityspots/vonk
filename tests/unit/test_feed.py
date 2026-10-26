@@ -18,6 +18,7 @@ from vonk.feed import (
     feed_title,
     feed_uid,
     render_calendar,
+    scope_scout_year,
 )
 from vonk.models import Event, Tak, is_own_uid
 
@@ -26,6 +27,7 @@ from .conftest import ENV
 URL = "https://scoutstervant.be/x.pdf"
 STORED = 1_790_000_000.0
 REPO = "visibilityspots/vonk-feed"
+TODAY = date(2026, 10, 26)
 
 
 def ev(scope="welpen:2026-11", day=7, title="Een tegen allen", start=time(14), end=time(16, 30)):
@@ -57,7 +59,7 @@ def test_tak_feed_holds_its_own_and_the_group_events_only():
         ("kabouters:2026-11", (ev("kabouters:2026-11", title="Bosspel"),), STORED),
         ("groep:2026-2027", (GROUP,), STORED),
     ]
-    files = build_feed(scopes, (Tak.WELPEN, Tak.KABOUTERS, Tak.JINS), REPO)
+    files = build_feed(scopes, (Tak.WELPEN, Tak.KABOUTERS, Tak.JINS), REPO, TODAY)
     assert set(files) == {"welpen.ics", "kabouters.ics", "jins.ics", "groep.ics", "index.html"}
     welpen = [str(e["SUMMARY"]) for e in events_of(files["welpen.ics"])]
     assert welpen == [
@@ -71,6 +73,50 @@ def test_tak_feed_holds_its_own_and_the_group_events_only():
     assert 'href="webcal://visibilityspots.github.io/vonk-feed/welpen.ics"' in index
     assert ("https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2F"
             "visibilityspots.github.io%2Fvonk-feed%2Fwelpen.ics") in index  # fmt: skip
+
+
+def summaries(ics: str) -> list[str]:
+    return [str(e["SUMMARY"]) for e in events_of(ics)]
+
+
+def dated(scope: str, day: date, title: str) -> Event:
+    return Event(scope, day, None, time(14), time(17), False, title, "", URL)
+
+
+def test_a_new_monthly_vonk_keeps_the_earlier_months():
+    oct_, nov = dated("welpen:2026-10", date(2026, 10, 3), "Oktober"), ev()
+    dec = dated("welpen:2026-12", date(2026, 12, 5), "December")
+    before = [("welpen:2026-10", (oct_,), STORED), ("welpen:2026-11", (nov,), STORED)]
+    after = [*before, ("welpen:2026-12", (dec,), STORED + 60)]
+    assert summaries(build_feed(after, (Tak.WELPEN,), REPO, date(2026, 12, 1))["welpen.ics"]) == [
+        "Scouts Welpen - Oktober", "Scouts Welpen - Een tegen allen", "Scouts Welpen - December",
+    ]  # fmt: skip
+
+
+def test_scout_year_of_scopes():
+    assert scope_scout_year("welpen:2026-09") == 2026
+    assert scope_scout_year("welpen:2027-08") == 2026
+    assert scope_scout_year("welpen:2027-09") == 2027
+    assert scope_scout_year("groep:2026-2027") == 2026
+
+
+def test_feed_holds_the_current_scout_year_and_later_only():
+    scopes = [
+        ("welpen:2026-10", (dated("welpen:2026-10", date(2026, 10, 3), "Oud jaar"),), STORED),
+        ("groep:2026-2027", (dated("groep:2026-2027", date(2027, 7, 12), "Kamp 2027"),), STORED),
+        ("welpen:2027-08", (dated("welpen:2027-08", date(2027, 8, 21), "Augustus"),), STORED),
+        ("welpen:2027-09", (dated("welpen:2027-09", date(2027, 9, 4), "Nieuw jaar"),), STORED),
+    ]
+    # still in 2026-2027 on 31 August, and the early September vonk shows up already
+    august = build_feed(scopes, (Tak.WELPEN,), REPO, date(2027, 8, 31))["welpen.ics"]
+    assert summaries(august) == [
+        "Scouts Welpen - Oud jaar", "Scouts - Kamp 2027", "Scouts Welpen - Augustus",
+        "Scouts Welpen - Nieuw jaar",
+    ]  # fmt: skip
+    # from 1 September the previous scout year leaves the feed, jaarvonk included
+    september = build_feed(scopes, (Tak.WELPEN,), REPO, date(2027, 9, 1))
+    assert summaries(september["welpen.ics"]) == ["Scouts Welpen - Nieuw jaar"]
+    assert summaries(september["groep.ics"]) == []
 
 
 def test_rendering_is_deterministic_and_uids_are_stable_and_not_own():
@@ -211,6 +257,14 @@ def test_poll_report_publishes_the_feed_and_survives_github_errors(make_world):
     written = len(gh.puts)
     w.client.post("/api/poll-report", json={"ok": True}, headers=w.auth)
     assert len(gh.puts) == written  # nothing changed, nothing committed
+    # a December vonk adds to the feed; October and November stay
+    dec = dated("welpen:2026-12", date(2026, 12, 5), "December")
+    w.client.post("/api/scopes/welpen:2026-12/desired",
+                  json=desired_body([dec], 2800), headers=w.auth)  # fmt: skip
+    w.client.post("/api/poll-report", json={"ok": True}, headers=w.auth)
+    assert summaries(gh.files["welpen.ics"][1].decode()) == [
+        "Scouts Welpen - Een tegen allen", "Scouts Welpen - December",
+    ]  # fmt: skip
     gh.fail = True
     assert w.client.post("/api/poll-report", json={"ok": True}, headers=w.auth).status_code == 200
     assert w.service.metrics.feed_errors._value.get() == 1

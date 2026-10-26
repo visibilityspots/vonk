@@ -27,6 +27,7 @@ import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -53,6 +54,7 @@ from vonk.models import (
     Sink,
     Tak,
 )
+from vonk.normalize import TZ
 from vonk.notify import (
     PRIORITY_HIGH,
     Notifier,
@@ -277,8 +279,9 @@ class Service:
         if self.feed is None or not self._feed_lock.acquire(blocking=False):
             return []
         try:
+            today = datetime.fromtimestamp(self.clock(), TZ).date()
             files = build_feed(
-                self.store.desired_all(), self.settings.feed_takken, self.feed.repo
+                self.store.desired_all(), self.settings.feed_takken, self.feed.repo, today
             )
             changed = self.feed.publish(files)
         except httpx.HTTPError as exc:
