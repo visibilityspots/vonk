@@ -50,8 +50,8 @@ Image: `podman build -t vonk:dev .` then `dgoss run vonk:dev` (see `goss.yaml`).
 ## Configuration
 
 All configuration is environment based; on the cluster it arrives through a Vault template
-from `the service's Vault path` (service) and `the poll job's Vault path` (poll job: `api_token`,
-`anthropic_api_key`, `takken`), one path per job as the Vault policy requires. Empty values and the consul-template string `<no value>` count
+from one Vault path per job (the poll job only needs `api_token`, `anthropic_api_key` and
+`takken`). Empty values and the consul-template string `<no value>` count
 as missing.
 
 | Env var | Vault key | Used by | Purpose |
@@ -84,17 +84,10 @@ In short:
    then the shared `github-workflows`
    `main.yml` (dgoss, multi-arch `linux/amd64,linux/arm64` push to Docker Hub). Set the
    repository variable `DOCKERHUB_REPOSITORY` to `vonk`.
-2. Seed the image into the zot registry (see the `cluster runbook` skill).
-3. Create `<nas-share>/vonk/` on the NAS, register its CSI volume.
-4. Write `the service's Vault path` and `the poll job's Vault path` in Vault; `vonk.example.internal`
-   is covered by the internal `*.example.internal` wildcard.
-5. The job specs live on the private cluster share, not in this repository: set the image
-   tag in `<cluster-share>/vonk.hcl` and `vonk-poll.hcl`, run `nomad job run`.
-6. The alert rules live in `infrastructure/prometheus.hcl` on the same share; redeploy
-   Prometheus and check `/api/v1/rules`.
-7. Verify with a real call (`curl -H 'Host: vonk.example.internal' .../health`,
-   `nomad job periodic force vonk-poll`), first against `vonk-test`, then `gezin`; add the
-   Argus entries.
+2. Deploy with the job specs, volume and alert rules kept outside this repository: set the
+   image tag and run the jobs.
+3. Verify with a real call to `/health` and a forced poll, first against a test calendar,
+   then the family one.
 
 ## Public ICS feed
 
