@@ -11,7 +11,7 @@ dependencies = [
     "httpx==0.28.1",
     "caldav==3.4.0",
     "icalendar==7.3.0",
-    "anthropic==1.13.0",
+    "anthropic==2.3.0",
     "starlette==1.7.0",
     "uvicorn==0.54.0",
     "prometheus-client==0.26.0",
