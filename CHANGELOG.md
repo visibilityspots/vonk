@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.9] - 2026-10-27
+### :wrench: Chores
+- [`67bb063`](https://github.com/visibilityspots/vonk/commit/67bb063c87f40c0c2b48fac75d846697b93f9769) - **deps**: bump actions/setup-python from 5 to 7 *(PR [#2](https://github.com/visibilityspots/vonk/pull/2) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`9557f43`](https://github.com/visibilityspots/vonk/commit/9557f43238d5b5ed7ef4d3125f35cbd8d5ac686c) - **deps**: bump caldav from 3.4.0 to 3.6.0 *(PR [#4](https://github.com/visibilityspots/vonk/pull/4) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`88af79b`](https://github.com/visibilityspots/vonk/commit/88af79bb4c4e54a0d7d705f7632d61f2fab2c41e) - **deps**: bump anthropic from 1.13.0 to 2.3.0 *(PR [#5](https://github.com/visibilityspots/vonk/pull/5) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`016ea83`](https://github.com/visibilityspots/vonk/commit/016ea8341581c94c01981c8732d6f72539e22bdf) - **deps-dev**: bump ruff from 0.17.0 to 0.17.2 *(PR [#7](https://github.com/visibilityspots/vonk/pull/7) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`d7413f7`](https://github.com/visibilityspots/vonk/commit/d7413f78bdeb274a6ada3c4499ed472ec805fbc5) - **deps**: bump actions/checkout from 6 to 7 *(PR [#3](https://github.com/visibilityspots/vonk/pull/3) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`560c5e5`](https://github.com/visibilityspots/vonk/commit/560c5e517a2d92796db57d54902f22256e19d0d7) - **deps**: bump starlette from 1.7.0 to 1.9.0 *(PR [#6](https://github.com/visibilityspots/vonk/pull/6) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`1624cf0`](https://github.com/visibilityspots/vonk/commit/1624cf0a118d621e406074b56cbc4bd7e5e24429) - release v0.2.9 *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+
 ## [v0.2.8] - 2026-10-26
 ### :sparkles: New Features
 - [`0c61fb5`](https://github.com/visibilityspots/vonk/commit/0c61fb576373e7893ae6e2121e24783dd24078f9) - **feed**: restyle the subscribe page *(commit by [@visibilityspots](https://github.com/visibilityspots))*
@@ -69,3 +80,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.2.6]: https://github.com/visibilityspots/vonk/compare/v0.2.5...v0.2.6
 [v0.2.7]: https://github.com/visibilityspots/vonk/compare/v0.2.6...v0.2.7
 [v0.2.8]: https://github.com/visibilityspots/vonk/compare/v0.2.7...v0.2.8
+[v0.2.9]: https://github.com/visibilityspots/vonk/compare/v0.2.8...v0.2.9
