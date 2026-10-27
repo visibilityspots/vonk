@@ -9,7 +9,7 @@ description = "Turn the Scouts en Gidsen Tervant vonk PDFs into approved CalDAV 
 requires-python = ">=3.12"
 dependencies = [
     "httpx==0.28.1",
-    "caldav==3.4.0",
+    "caldav==3.6.0",
     "icalendar==7.3.0",
     "anthropic==1.13.0",
     "starlette==1.7.0",
