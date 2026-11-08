@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import base64
 import json
-from datetime import date, time
+from datetime import UTC, date, datetime, time
 
 import httpx
 from icalendar import Calendar
@@ -14,12 +14,15 @@ from vonk.config import Settings
 from vonk.feed import (
     FEED_UID_DOMAIN,
     GitHubFeedPublisher,
-    build_feed,
+    build_calendars,
     feed_title,
     feed_uid,
+    format_changed,
     render_calendar,
+    render_index,
     scope_scout_year,
 )
+from vonk.metrics import Metrics
 from vonk.models import Event, Tak, is_own_uid
 
 from .conftest import ENV
@@ -59,8 +62,9 @@ def test_tak_feed_holds_its_own_and_the_group_events_only():
         ("kabouters:2026-11", (ev("kabouters:2026-11", title="Bosspel"),), STORED),
         ("groep:2026-2027", (GROUP,), STORED),
     ]
-    files = build_feed(scopes, (Tak.WELPEN, Tak.KABOUTERS, Tak.JINS), REPO, TODAY)
-    assert set(files) == {"welpen.ics", "kabouters.ics", "jins.ics", "groep.ics", "index.html"}
+    takken = (Tak.WELPEN, Tak.KABOUTERS, Tak.JINS)
+    files = build_calendars(scopes, takken, TODAY)
+    assert set(files) == {"welpen.ics", "kabouters.ics", "jins.ics", "groep.ics"}
     welpen = [str(e["SUMMARY"]) for e in events_of(files["welpen.ics"])]
     assert welpen == [
         "Scouts Welpen - Een tegen allen",
@@ -69,7 +73,8 @@ def test_tak_feed_holds_its_own_and_the_group_events_only():
     ]
     assert [str(e["SUMMARY"]) for e in events_of(files["jins.ics"])] == ["Scouts - Kerstfeestje"]
     assert [str(e["SUMMARY"]) for e in events_of(files["groep.ics"])] == ["Scouts - Kerstfeestje"]
-    index = files["index.html"]
+    index = render_index(REPO, takken)
+    assert "Laatst gewijzigd" not in index  # no times known: no line
     assert 'href="webcal://visibilityspots.github.io/vonk-feed/welpen.ics"' in index
     assert ("https://calendar.google.com/calendar/render?cid=webcal%3A%2F%2F"
             "visibilityspots.github.io%2Fvonk-feed%2Fwelpen.ics") in index  # fmt: skip
@@ -88,7 +93,7 @@ def test_a_new_monthly_vonk_keeps_the_earlier_months():
     dec = dated("welpen:2026-12", date(2026, 12, 5), "December")
     before = [("welpen:2026-10", (oct_,), STORED), ("welpen:2026-11", (nov,), STORED)]
     after = [*before, ("welpen:2026-12", (dec,), STORED + 60)]
-    assert summaries(build_feed(after, (Tak.WELPEN,), REPO, date(2026, 12, 1))["welpen.ics"]) == [
+    assert summaries(build_calendars(after, (Tak.WELPEN,), date(2026, 12, 1))["welpen.ics"]) == [
         "Scouts Welpen - Oktober", "Scouts Welpen - Een tegen allen", "Scouts Welpen - December",
     ]  # fmt: skip
 
@@ -108,13 +113,13 @@ def test_feed_holds_the_current_scout_year_and_later_only():
         ("welpen:2027-09", (dated("welpen:2027-09", date(2027, 9, 4), "Nieuw jaar"),), STORED),
     ]
     # still in 2026-2027 on 31 August, and the early September vonk shows up already
-    august = build_feed(scopes, (Tak.WELPEN,), REPO, date(2027, 8, 31))["welpen.ics"]
+    august = build_calendars(scopes, (Tak.WELPEN,), date(2027, 8, 31))["welpen.ics"]
     assert summaries(august) == [
         "Scouts Welpen - Oud jaar", "Scouts - Kamp 2027", "Scouts Welpen - Augustus",
         "Scouts Welpen - Nieuw jaar",
     ]  # fmt: skip
     # from 1 September the previous scout year leaves the feed, jaarvonk included
-    september = build_feed(scopes, (Tak.WELPEN,), REPO, date(2027, 9, 1))
+    september = build_calendars(scopes, (Tak.WELPEN,), date(2027, 9, 1))
     assert summaries(september["welpen.ics"]) == ["Scouts Welpen - Nieuw jaar"]
     assert summaries(september["groep.ics"]) == []
 
@@ -154,11 +159,21 @@ class FakeGitHub:
         self.puts: list[dict] = []
         self.auth: set[str] = set()
         self.fail = False
+        self.now = 1_794_000_000  # commit time of the next PUT, advanced per commit
+        self.commit_times: dict[str, int] = {}
+        self.commit_queries: list[str] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.auth.add(request.headers.get("Authorization", ""))
         if self.fail:
             return httpx.Response(503)
+        if request.url.path == f"/repos/{REPO}/commits":
+            path = request.url.params["path"]
+            self.commit_queries.append(path)
+            if path not in self.commit_times:
+                return httpx.Response(200, json=[])
+            return httpx.Response(200, json=[{"commit": {"committer": {
+                "date": iso(self.commit_times[path])}}}])  # fmt: skip
         path = request.url.path.removeprefix(f"/repos/{REPO}/contents/")
         if request.method == "GET":
             if path not in self.files:
@@ -171,7 +186,13 @@ class FakeGitHub:
             return httpx.Response(409)
         self.puts.append({"path": path, **body})
         self.files[path] = (f"sha{len(self.puts)}", base64.b64decode(body["content"]))
-        return httpx.Response(201, json={})
+        self.now += 60
+        self.commit_times[path] = self.now
+        return httpx.Response(201, json={"commit": {"committer": {"date": iso(self.now)}}})
+
+
+def iso(ts: int) -> str:
+    return datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def publisher(gh: FakeGitHub) -> GitHubFeedPublisher:
@@ -182,9 +203,12 @@ def publisher(gh: FakeGitHub) -> GitHubFeedPublisher:
 def test_publisher_creates_updates_and_skips_unchanged_files():
     gh = FakeGitHub()
     pub = publisher(gh)
-    assert pub.publish({"a.ics": "one", "b.ics": "two"}) == ["a.ics", "b.ics"]
-    assert pub.publish({"a.ics": "one", "b.ics": "two"}) == []
-    assert pub.publish({"a.ics": "one", "b.ics": "three"}) == ["b.ics"]
+    assert pub.publish({"a.ics": "one", "b.ics": "two"}) == {
+        "a.ics": gh.now - 60, "b.ics": gh.now,
+    }  # fmt: skip
+    assert pub.publish({"a.ics": "one", "b.ics": "two"}) == {}
+    assert pub.publish({"a.ics": "one", "b.ics": "three"}) == {"b.ics": gh.now}
+    assert pub.last_change("b.ics") == gh.now and pub.last_change("c.ics") is None
     assert gh.files["b.ics"][1] == b"three"
     assert gh.puts[-1]["sha"] == "sha2" and gh.puts[-1]["branch"] == "main"
     assert gh.auth == {"Bearer gh-token"}
@@ -268,3 +292,57 @@ def test_poll_report_publishes_the_feed_and_survives_github_errors(make_world):
     gh.fail = True
     assert w.client.post("/api/poll-report", json={"ok": True}, headers=w.auth).status_code == 200
     assert w.service.metrics.feed_errors._value.get() == 1
+
+
+def test_index_shows_when_each_calendar_last_changed():
+    changed = {"welpen.ics": 1_793_042_734.0}  # 2026-10-26 19:25:34 UTC
+    index = render_index(REPO, (Tak.WELPEN, Tak.JINS), changed)
+    welpen, jins = index.partition('class="feeds"')[2].split("<li>")[1:3]
+    assert "Laatst gewijzigd: 26 oktober 2026, 20:25" in welpen  # Belgian time, CET
+    assert "Laatst gewijzigd" not in jins
+    assert format_changed(1_785_000_000) == "25 juli 2026, 19:20"  # CEST
+
+
+def test_publish_records_change_times_in_metrics_page_and_store(make_world):
+    gh = FakeGitHub()
+    w = feed_world(make_world, gh)
+    w.client.post("/api/scopes/welpen:2026-11/desired",
+                  json=desired_body([ev()], 2734), headers=w.auth)  # fmt: skip
+    w.client.post("/api/poll-report", json={"ok": True}, headers=w.auth)
+    first = {p["path"]: gh.commit_times[p["path"]] for p in gh.puts if p["path"] != "index.html"}
+    gauge = w.service.metrics.feed_last_change
+    assert gauge.labels(feed="welpen")._value.get() == first["welpen.ics"]
+    index = gh.files["index.html"][1].decode()
+    assert f"Laatst gewijzigd: {format_changed(first['welpen.ics'])}" in index
+    # a run without changes keeps the times, commits nothing and asks GitHub nothing
+    puts, queries = len(gh.puts), len(gh.commit_queries)
+    w.client.post("/api/poll-report", json={"ok": True}, headers=w.auth)
+    assert len(gh.puts) == puts and len(gh.commit_queries) == queries
+    # only the calendar that changed gets a new time; the page follows
+    dec = dated("welpen:2026-12", date(2026, 12, 5), "December")
+    w.client.post("/api/scopes/welpen:2026-12/desired",
+                  json=desired_body([dec], 2800), headers=w.auth)  # fmt: skip
+    w.client.post("/api/poll-report", json={"ok": True}, headers=w.auth)
+    assert gauge.labels(feed="welpen")._value.get() == gh.commit_times["welpen.ics"]
+    assert gh.commit_times["welpen.ics"] > first["welpen.ics"]
+    assert gauge.labels(feed="groep")._value.get() == first["groep.ics"]
+    assert [p["path"] for p in gh.puts[puts:]] == ["welpen.ics", "index.html"]
+    # persisted: a restarted service exports the same times before any publish
+    restarted = Metrics()
+    restarted.init_from_store(w.store, process_start=0)
+    assert restarted.feed_last_change.labels(feed="welpen")._value.get() == (
+        gh.commit_times["welpen.ics"]
+    )
+
+
+def test_unknown_change_time_is_taken_from_the_last_commit(make_world):
+    gh = FakeGitHub()
+    w = feed_world(make_world, gh)
+    w.client.post("/api/poll-report", json={"ok": True}, headers=w.auth)
+    with w.store._tx() as c:  # a service upgraded from before change times existed
+        c.execute("DELETE FROM meta WHERE key LIKE 'feed_changed:%'")
+    gh.commit_times["groep.ics"] = 1_793_042_734
+    w.client.post("/api/poll-report", json={"ok": True}, headers=w.auth)
+    gauge = w.service.metrics.feed_last_change
+    assert gauge.labels(feed="groep")._value.get() == 1_793_042_734
+    assert w.store.get_meta("feed_changed:groep.ics") == 1_793_042_734

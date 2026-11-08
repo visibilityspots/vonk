@@ -38,10 +38,10 @@ from starlette.routing import Route
 
 from vonk.config import Settings
 from vonk.diff import build_changeset
-from vonk.feed import GitHubFeedPublisher, build_feed
+from vonk.feed import GitHubFeedPublisher, build_calendars, render_index
 from vonk.ingest import describe_http_error
 from vonk.match import resolve
-from vonk.metrics import Metrics
+from vonk.metrics import Metrics, feed_name
 from vonk.models import (
     ChangeSet,
     Event,
@@ -62,7 +62,13 @@ from vonk.notify import (
     result_message,
     warnings_message,
 )
-from vonk.store import LAST_COMPLETED_POLL, LAST_NEW_VONK, LAST_SUCCESSFUL_POLL, Store
+from vonk.store import (
+    FEED_CHANGED_PREFIX,
+    LAST_COMPLETED_POLL,
+    LAST_NEW_VONK,
+    LAST_SUCCESSFUL_POLL,
+    Store,
+)
 
 log = logging.getLogger("vonk.api")
 
@@ -275,15 +281,22 @@ class Service:
 
         Runs after every poll report, so a failed publish is retried by the next poll.
         A publish that is still running makes this one a no-op.
+
+        Calendars go first; ``index.html`` follows with the time each calendar last
+        changed. A calendar without a stored time (first run, or a run that failed after
+        its commit) takes the time of its last commit on GitHub.
         """
         if self.feed is None or not self._feed_lock.acquire(blocking=False):
             return []
         try:
             today = datetime.fromtimestamp(self.clock(), TZ).date()
-            files = build_feed(
-                self.store.desired_all(), self.settings.feed_takken, self.feed.repo, today
-            )
-            changed = self.feed.publish(files)
+            takken = self.settings.feed_takken
+            calendars = build_calendars(self.store.desired_all(), takken, today)
+            changed = self.feed.publish(calendars)
+            changed_at = self._feed_change_times(calendars, changed)
+            index = render_index(self.feed.repo, takken, changed_at)
+            changed |= self.feed.publish({"index.html": index})
+            files = len(calendars) + 1
         except httpx.HTTPError as exc:
             self.metrics.feed_errors.inc()
             log.error("feed publish failed: %s", describe_http_error(exc))
@@ -295,8 +308,27 @@ class Service:
         finally:
             self._feed_lock.release()
         self.metrics.feed_last_publish.set(self.clock())
-        log.info("feed: %d files checked, changed: %s", len(files), ", ".join(changed) or "none")
-        return changed
+        log.info("feed: %d files checked, changed: %s", files, ", ".join(changed) or "none")
+        return sorted(changed)
+
+    def _feed_change_times(
+        self, calendars: Mapping[str, str], changed: Mapping[str, float]
+    ) -> dict[str, float]:
+        """Store and export the change time of every calendar; returns them by path."""
+        for path, ts in changed.items():
+            self.store.set_meta(FEED_CHANGED_PREFIX + path, ts)
+        known = self.store.meta_with_prefix(FEED_CHANGED_PREFIX)
+        assert self.feed is not None
+        for path in calendars:
+            if path not in known:
+                ts = self.feed.last_change(path)
+                if ts is not None:
+                    self.store.set_meta(FEED_CHANGED_PREFIX + path, ts)
+                    known[path] = ts
+        times = {path: known[path] for path in calendars if path in known}
+        for path, ts in times.items():
+            self.metrics.feed_last_change.labels(feed=feed_name(path)).set(ts)
+        return times
 
     # --- approve flow --------------------------------------------------------------------
 

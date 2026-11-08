@@ -33,6 +33,8 @@ LAST_COMPLETED_POLL = "last_completed_poll"
 LAST_SUCCESSFUL_POLL = "last_successful_poll"
 LAST_NEW_VONK = "last_new_vonk"
 FIRST_START = "first_start"
+FEED_CHANGED_PREFIX = "feed_changed:"
+"""Per feed file: ``feed_changed:<file>`` holds the Unix time its content last changed."""
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS seen (
@@ -499,6 +501,12 @@ class Store:
     def set_meta(self, key: str, value: float) -> None:
         with self._tx() as c:
             c.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)", (key, value))
+
+    def meta_with_prefix(self, prefix: str) -> dict[str, float]:
+        """Every meta value whose key starts with ``prefix``, keyed by the rest."""
+        rows = self._query("SELECT key, value FROM meta WHERE substr(key, 1, ?) = ?",
+                           (len(prefix), prefix))  # fmt: skip
+        return {r["key"][len(prefix):]: float(r["value"]) for r in rows}
 
     def init_meta(self, key: str, value: float) -> float:
         """Set ``key`` only if absent; return the stored value."""
