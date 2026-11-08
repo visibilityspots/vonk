@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.11] - 2026-11-08
+### :bug: Bug Fixes
+- [`4548d7e`](https://github.com/visibilityspots/vonk/commit/4548d7e615838cafab77b98c1fe41cfca492edad) - **api**: re-announce a changeset whose approve link expired *(PR [#14](https://github.com/visibilityspots/vonk/pull/14) by [@visibilityspots](https://github.com/visibilityspots))*
+
+### :wrench: Chores
+- [`67cefac`](https://github.com/visibilityspots/vonk/commit/67cefacde096874ed1774428ad2a37204a8a87fc) - release v0.2.11 *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+
 ## [v0.2.10] - 2026-11-08
 ### :sparkles: New Features
 - [`382c8c5`](https://github.com/visibilityspots/vonk/commit/382c8c531f3c21a4b093963bf1ebbce4ee33943e) - **feed**: show and export when each calendar last changed *(PR [#13](https://github.com/visibilityspots/vonk/pull/13) by [@visibilityspots](https://github.com/visibilityspots))*
@@ -96,3 +104,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.2.8]: https://github.com/visibilityspots/vonk/compare/v0.2.7...v0.2.8
 [v0.2.9]: https://github.com/visibilityspots/vonk/compare/v0.2.8...v0.2.9
 [v0.2.10]: https://github.com/visibilityspots/vonk/compare/v0.2.9...v0.2.10
+[v0.2.11]: https://github.com/visibilityspots/vonk/compare/v0.2.10...v0.2.11
