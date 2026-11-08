@@ -17,6 +17,10 @@ keeps it).
 Publishing goes through the GitHub contents API and only writes files whose content
 changed: ``DTSTAMP`` is the time the scope was stored, so an unchanged vonk renders to the
 same bytes and does not produce a commit.
+
+Per calendar the page shows when its content last changed: the time of the commit that
+wrote it. The calendars are published first, so ``index.html`` is rendered with the times
+of this run; it therefore changes (and is committed) only when a calendar did.
 """
 
 from __future__ import annotations
@@ -34,7 +38,7 @@ import httpx
 from icalendar import Calendar
 
 from vonk.models import Event, Tak
-from vonk.normalize import event_bounds
+from vonk.normalize import TZ, event_bounds
 from vonk.sinks.caldav_sink import PRODID, build_vevent
 
 log = logging.getLogger("vonk.feed")
@@ -56,6 +60,9 @@ TAK_NAMES: Mapping[Tak, str] = {
     Tak.JINS: "Jins",
     Tak.GROEP: "Groep",
 }
+
+MONTHS_NL = ("januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus",
+             "september", "oktober", "november", "december")  # fmt: skip
 
 StoredScope = tuple[str, Sequence[Event], float]
 """``(scope_key, events, updated_at)`` as returned by ``Store.desired_all``."""
@@ -190,29 +197,42 @@ $items
 """)
 
 
-def render_index(repo: str, takken: Sequence[Tak]) -> str:
+def format_changed(ts: float) -> str:
+    """``26 oktober 2026, 20:25`` in Belgian time; no locale needed."""
+    dt = datetime.fromtimestamp(ts, TZ)
+    return f"{dt.day} {MONTHS_NL[dt.month - 1]} {dt.year}, {dt:%H:%M}"
+
+
+def render_index(
+    repo: str, takken: Sequence[Tak], changed_at: Mapping[str, float] | None = None
+) -> str:
     """A plain page listing the subscribe links: webcal:// for Apple devices, a Google
-    Calendar link for Android (webcal:// does nothing there), and the plain URL. Accent
-    colours follow scoutstervant.be; no external fonts or scripts."""
+    Calendar link for Android (webcal:// does nothing there), and the plain URL, plus when
+    each calendar last changed (``changed_at`` by file name; unknown ones show nothing).
+    Accent colours follow scoutstervant.be; no external fonts or scripts."""
     base = pages_url(repo)
+    changed_at = changed_at or {}
     rows = []
     for tak in [*takken, Tak.GROEP]:
-        url = f"{base}{tak.value}.ics"
+        name = f"{tak.value}.ics"
+        url = f"{base}{name}"
         webcal = "webcal://" + url.removeprefix("https://")
         label = "Hele groep (alleen groepsactiviteiten)" if tak is Tak.GROEP else TAK_NAMES[tak]
+        changed = changed_at.get(name)
+        when = f"<br><small>Laatst gewijzigd: {format_changed(changed)}</small>" if changed else ""
         rows.append(
             f"<li><b>{html.escape(label)}</b><br>"
             f'<a href="{html.escape(webcal)}">iPhone/Mac</a>'
             f' · <a href="{html.escape(google_url(webcal))}">Google Agenda</a><br>'
-            f"<code>{html.escape(url)}</code></li>"
+            f"<code>{html.escape(url)}</code>{when}</li>"
         )
     return INDEX_TEMPLATE.substitute(items="\n".join(rows), lily=LILY)
 
 
-def build_feed(
-    scopes: Sequence[StoredScope], takken: Sequence[Tak], repo: str, today: date
+def build_calendars(
+    scopes: Sequence[StoredScope], takken: Sequence[Tak], today: date
 ) -> dict[str, str]:
-    """Every feed file by path: ``<tak>.ics`` per tak, ``groep.ics`` and ``index.html``.
+    """Every calendar by path: ``<tak>.ics`` per tak and ``groep.ics``.
 
     Only scopes of the scout year ``today`` is in, or a later one (a September vonk that
     appears in August), are published.
@@ -231,7 +251,6 @@ def build_feed(
         for tak in takken
     }
     files["groep.ics"] = render_calendar("Scouts Tervant - Groep", group)
-    files["index.html"] = render_index(repo, takken)
     return files
 
 
@@ -262,9 +281,25 @@ class GitHubFeedPublisher:
         body = resp.json()
         return body["sha"], base64.b64decode(body.get("content") or "")
 
-    def publish(self, files: Mapping[str, str]) -> list[str]:
-        """Create or update every file whose content differs; returns the changed paths."""
-        changed = []
+    def last_change(self, path: str) -> float | None:
+        """Unix time of the last commit that touched ``path`` on the branch, if any."""
+        resp = self.client.get(
+            f"{GITHUB_API}/repos/{self.repo}/commits",
+            params={"path": path, "sha": self.branch, "per_page": 1},
+            headers=self.headers, timeout=HTTP_TIMEOUT,
+        )  # fmt: skip
+        resp.raise_for_status()
+        commits = resp.json()
+        if not commits:
+            return None
+        return _parse_time(commits[0]["commit"]["committer"]["date"])
+
+    def publish(self, files: Mapping[str, str]) -> dict[str, float]:
+        """Create or update every file whose content differs.
+
+        Returns the changed paths with the Unix time of the commit that wrote each.
+        """
+        changed: dict[str, float] = {}
         for path in sorted(files):
             data = files[path].encode("utf-8")
             sha, current = self._current(path)
@@ -281,5 +316,12 @@ class GitHubFeedPublisher:
                 self._url(path), json=body, headers=self.headers, timeout=HTTP_TIMEOUT
             )
             resp.raise_for_status()
-            changed.append(path)
+            commit = resp.json().get("commit") or {}
+            stamp = (commit.get("committer") or {}).get("date")
+            changed[path] = _parse_time(stamp) if stamp else datetime.now(UTC).timestamp()
         return changed
+
+
+def _parse_time(stamp: str) -> float:
+    """GitHub's ``2026-10-26T20:34:26Z``."""
+    return datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()

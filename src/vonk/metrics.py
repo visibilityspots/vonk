@@ -11,6 +11,7 @@ from prometheus_client import CollectorRegistry, Counter, Gauge, generate_latest
 from prometheus_client.exposition import CONTENT_TYPE_LATEST
 
 from vonk.store import (
+    FEED_CHANGED_PREFIX,
     FIRST_START,
     LAST_COMPLETED_POLL,
     LAST_NEW_VONK,
@@ -21,6 +22,11 @@ from vonk.store import (
 CONTENT_TYPE = CONTENT_TYPE_LATEST
 
 _HEARTBEATS = (LAST_COMPLETED_POLL, LAST_SUCCESSFUL_POLL, LAST_NEW_VONK)
+
+
+def feed_name(path: str) -> str:
+    """Label value of a feed file: ``welpen.ics`` -> ``welpen``."""
+    return path.removesuffix(".ics")
 
 
 class Metrics:
@@ -54,6 +60,12 @@ class Metrics:
             "Unix time the public ICS feed was last published (or found unchanged)",
             registry=r,
         )
+        self.feed_last_change = Gauge(
+            "vonk_feed_last_change_timestamp",
+            "Unix time the content of a feed calendar last changed (its last commit)",
+            ["feed"],
+            registry=r,
+        )
         self.feed_errors = Counter(
             "vonk_feed_errors", "Failed publishes of the public ICS feed", registry=r
         )
@@ -74,6 +86,8 @@ class Metrics:
         for key in _HEARTBEATS:
             value = store.get_meta(key)
             gauges[key].set(first if value is None else value)
+        for path, ts in store.meta_with_prefix(FEED_CHANGED_PREFIX).items():
+            self.feed_last_change.labels(feed=feed_name(path)).set(ts)
         self.refresh(store)
 
     def refresh(self, store: Store) -> None:

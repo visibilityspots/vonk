@@ -94,6 +94,11 @@ display name and is not used for the path.
   edited vonk updates the event on subscribed phones instead of duplicating it.
 - Only changed files are committed; a failed publish increments `vonk_feed_errors` and is
   retried after the next poll. `vonk_feed_last_publish_timestamp` shows the last success.
+- Per calendar the page shows "Laatst gewijzigd": the time of the last commit that changed
+  that file. The same time is exported as `vonk_feed_last_change_timestamp{feed="<tak>"}`
+  (`groep` included) and kept in SQLite. A calendar without a stored time takes it from its
+  last commit on GitHub once. `index.html` is written after the calendars, so it only
+  changes when a calendar did.
 
 ### Privacy
 
