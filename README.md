@@ -4,6 +4,7 @@
 [![docker-hub-description](https://github.com/visibilityspots/vonk/actions/workflows/docker-hub-description.yml/badge.svg)](https://github.com/visibilityspots/vonk/actions/workflows/docker-hub-description.yml)
 [![build status](https://github.com/visibilityspots/vonk/actions/workflows/ci.yml/badge.svg)](https://github.com/visibilityspots/vonk/actions/workflows/ci.yml)
 [![gitHub release](https://img.shields.io/github/v/release/visibilityspots/vonk)](https://github.com/visibilityspots/vonk/releases)
+[![feed updated](https://img.shields.io/github/last-commit/visibilityspots/vonk/gh-pages?label=feed%20updated)](https://visibilityspots.github.io/vonk/)
 [![docker image size](https://img.shields.io/docker/image-size/visibilityspots/vonk/latest)](https://hub.docker.com/r/visibilityspots/vonk)
 [![docker pulls](https://img.shields.io/docker/pulls/visibilityspots/vonk.svg)](https://hub.docker.com/r/visibilityspots/vonk/)
 
