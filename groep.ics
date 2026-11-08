@@ -59,7 +59,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Powell After Work
 DTSTART;VALUE=DATE:20261002
 DTEND;VALUE=DATE:20261003
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-d47fd6ef807f2ac16d48d6cc@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
@@ -74,7 +74,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Geen scouts (Powell party)
 DTSTART;VALUE=DATE:20261003
 DTEND;VALUE=DATE:20261004
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-66c0ba1b06af11de581b3242@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:Powell party\nhttps://scoutstervant.be/wp-content/uploads/2026
@@ -89,7 +89,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Jonggivertrophy
 DTSTART;VALUE=DATE:20261017
 DTEND;VALUE=DATE:20261018
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-fd774f251e543836fc12f0e1@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
@@ -104,7 +104,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Givertrophy
 DTSTART;VALUE=DATE:20261018
 DTEND;VALUE=DATE:20261019
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-0cae64931cd70818b9d6088d@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
@@ -119,7 +119,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Dropping
 DTSTART;VALUE=DATE:20261024
 DTEND;VALUE=DATE:20261025
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-6713c4f58d0eb89daebad973@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
@@ -134,7 +134,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Kampmenu
 DTSTART;TZID=Europe/Brussels:20261108T110000
 DTEND;TZID=Europe/Brussels:20261108T140000
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-43f8e19dd3b36f10501b603f@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
@@ -149,7 +149,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Minimarkt
 DTSTART;TZID=Europe/Brussels:20261128T140000
 DTEND;TZID=Europe/Brussels:20261128T170000
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-f6fb97b4b721799abea63007@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:Publiek welkom vanaf 16u\neinduur onbekend\nhttps://scoutsterv
@@ -164,7 +164,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Kerstfeestje
 DTSTART;TZID=Europe/Brussels:20261218T190000
 DTEND;TZID=Europe/Brussels:20261218T210000
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-074009c01f572af0a53d6e6c@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
@@ -179,7 +179,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Middernachtmis
 DTSTART;TZID=Europe/Brussels:20261225T000000
 DTEND;TZID=Europe/Brussels:20261225T030000
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-ea47e21f099094e48084dbbf@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:einduur onbekend\nhttps://scoutstervant.be/wp-content/uploads/
@@ -194,7 +194,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Eetdag Akaba
 DTSTART;VALUE=DATE:20270206
 DTEND;VALUE=DATE:20270207
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-1373bb8acd989f0e307180e7@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
@@ -209,7 +209,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Geen scouts (Kampplanning)
 DTSTART;VALUE=DATE:20270220
 DTEND;VALUE=DATE:20270222
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-9bb4c26053536a40a15b5ab0@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:Kampplanning\nhttps://scoutstervant.be/wp-content/uploads/2026
@@ -224,7 +224,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Powell Quiz
 DTSTART;TZID=Europe/Brussels:20270410T190000
 DTEND;TZID=Europe/Brussels:20270410T220000
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-e0a0dd634bf08dcf8082a4b4@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:einduur onbekend\nhttps://scoutstervant.be/wp-content/uploads/
@@ -239,7 +239,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Groepsactiviteit
 DTSTART;TZID=Europe/Brussels:20270425T140000
 DTEND;TZID=Europe/Brussels:20270425T170000
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-3d8f1edb174b7dbc867f1ab2@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-2
@@ -254,7 +254,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Kampinschrijving
 DTSTART;TZID=Europe/Brussels:20270528T190000
 DTEND;TZID=Europe/Brussels:20270528T220000
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-cf6cf8ab3579a6ca5278ef0a@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:einduur onbekend\nhttps://scoutstervant.be/wp-content/uploads/
@@ -269,7 +269,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts - Kamp
 DTSTART;VALUE=DATE:20270712
 DTEND;VALUE=DATE:20270723
-DTSTAMP:20261013T160207Z
+DTSTAMP:20261108T163342Z
 UID:vonk-7acac67fc8ba33bcf4d5096e@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:Het kamp gaat dit jaar door van maandag 12 juli tot en met don
