@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.10] - 2026-11-08
+### :sparkles: New Features
+- [`382c8c5`](https://github.com/visibilityspots/vonk/commit/382c8c531f3c21a4b093963bf1ebbce4ee33943e) - **feed**: show and export when each calendar last changed *(PR [#13](https://github.com/visibilityspots/vonk/pull/13) by [@visibilityspots](https://github.com/visibilityspots))*
+
+### :wrench: Chores
+- [`5c523a8`](https://github.com/visibilityspots/vonk/commit/5c523a81ab40c59a9f5c04b85d04c2c7b17d4325) - **deps-dev**: bump ruff from 0.17.2 to 0.17.3 *(PR [#12](https://github.com/visibilityspots/vonk/pull/12) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`fb899a2`](https://github.com/visibilityspots/vonk/commit/fb899a258ff08465b4c45650f62d912f613a8937) - **deps**: bump tzdata from 2026.5 to 2026.6 *(PR [#11](https://github.com/visibilityspots/vonk/pull/11) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`4bcdaca`](https://github.com/visibilityspots/vonk/commit/4bcdaca2aa4ee4c96aab2db7c365f1a6da8db3d2) - **deps-dev**: bump hatchling from 1.32.4 to 1.33.0 *(PR [#9](https://github.com/visibilityspots/vonk/pull/9) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`f0ae418`](https://github.com/visibilityspots/vonk/commit/f0ae418307eae92e11da9aa294bec3e16e14c21d) - **deps-dev**: bump pytest from 9.1.1 to 9.2.0 *(PR [#8](https://github.com/visibilityspots/vonk/pull/8) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`98474ff`](https://github.com/visibilityspots/vonk/commit/98474ff8a50ea6c690318580a7421f4afe495661) - **deps**: bump caldav from 3.6.0 to 3.7.0 *(PR [#10](https://github.com/visibilityspots/vonk/pull/10) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`1e7430c`](https://github.com/visibilityspots/vonk/commit/1e7430c953a4a6ff1aff5960552e1bae33d55591) - **deps**: drop unused caldav dependency *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`f4bdb94`](https://github.com/visibilityspots/vonk/commit/f4bdb9434b8aa771d2babf143c890c5e1f3a2f8d) - release v0.2.10 *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+
 ## [v0.2.9] - 2026-10-27
 ### :wrench: Chores
 - [`67bb063`](https://github.com/visibilityspots/vonk/commit/67bb063c87f40c0c2b48fac75d846697b93f9769) - **deps**: bump actions/setup-python from 5 to 7 *(PR [#2](https://github.com/visibilityspots/vonk/pull/2) by [@dependabot[bot]](https://github.com/apps/dependabot))*
@@ -81,3 +95,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.2.7]: https://github.com/visibilityspots/vonk/compare/v0.2.6...v0.2.7
 [v0.2.8]: https://github.com/visibilityspots/vonk/compare/v0.2.7...v0.2.8
 [v0.2.9]: https://github.com/visibilityspots/vonk/compare/v0.2.8...v0.2.9
+[v0.2.10]: https://github.com/visibilityspots/vonk/compare/v0.2.9...v0.2.10
