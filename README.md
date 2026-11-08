@@ -32,6 +32,8 @@ is 1.
 2. The poll result is sent to the `vonk` service, which diffs it against the events it owns
    in the Baikal calendar (UID prefix `vonk-`, domain `@vonk.visibilityspots`).
 3. A non-empty diff is announced through Gotify with a link to an internal approve page.
+   The link is valid for 48 hours. When it expires unapproved, the next poll report
+   announces the scope again with a fresh link, so a missed notice never hides a diff.
 4. Only after approval in the browser does the service write the diff over CalDAV.
 5. After every poll report the service renders the public feed from the stored events and
    pushes the files that changed to GitHub Pages (see [Public ICS feed](#public-ics-feed)).

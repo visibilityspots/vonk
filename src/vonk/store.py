@@ -390,6 +390,21 @@ class Store:
         )
         return rows[0]["changeset_hash"] if rows else None
 
+    def expired_pending_scopes(self) -> list[str]:
+        """Scopes with a pending ChangeSet whose approve tokens all expired unused.
+
+        Nothing else brings such a ChangeSet back: the poll skips a post it has seen, so
+        without a re-announce it stays invisible (``pending_count`` ignores it too).
+        """
+        rows = self._query(
+            "SELECT DISTINCT c.scope_key FROM changesets c WHERE c.status='pending'"
+            " AND NOT EXISTS (SELECT 1 FROM tokens t WHERE t.changeset_id=c.id"
+            " AND t.used_at IS NULL AND t.superseded=0 AND t.expires_at>?)"
+            " ORDER BY c.scope_key",
+            (self.clock(),),
+        )
+        return [r["scope_key"] for r in rows]
+
     def pending_count(self) -> int:
         rows = self._query(
             "SELECT COUNT(*) AS n FROM tokens WHERE used_at IS NULL AND superseded=0"

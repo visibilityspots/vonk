@@ -270,11 +270,32 @@ class Service:
         fresh = self.store.new_warnings(warnings)
         if fresh:
             self.notifier.send(*warnings_message(fresh))
+        self.reannounce_expired()
         if self.feed is not None:
             if self.feed_in_background:
                 threading.Thread(target=self.publish_feed, name="feed", daemon=True).start()
             else:
                 self.publish_feed()
+
+    def reannounce_expired(self) -> list[str]:
+        """Announce a fresh ChangeSet for every followed scope whose pending one expired
+        unapproved. Returns the scopes that got a new approve link."""
+        done: list[str] = []
+        if self.sink is None:
+            return done
+        for scope_key in self.store.expired_pending_scopes():
+            if not self.follows(scope_key):
+                continue
+            with self.lock(scope_key):
+                try:
+                    answer = self.propose(scope_key)
+                except Exception:  # noqa: BLE001 - one scope must not stop the others
+                    log.exception("%s: re-announce failed", scope_key)
+                    continue
+            if answer.get("changeset_id"):
+                log.info("%s: approve link expired, re-announced", scope_key)
+                done.append(scope_key)
+        return done
 
     def publish_feed(self) -> list[str]:
         """Render the public feed from the stored desired events and push what changed.

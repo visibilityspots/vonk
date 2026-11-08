@@ -205,6 +205,42 @@ def test_failed_poll_report_only_moves_completed(world):
     assert bad.status_code == 400
 
 
+def test_poll_report_re_announces_a_changeset_whose_link_expired(world):
+    from vonk.store import TOKEN_TTL_SECONDS
+
+    report = {"ok": True, "errors": [], "warnings": []}
+    post_desired(world, [ev(3), ev(10, "Bosspel")])
+    (old,) = world.gotify.links()
+    world.client.post("/api/poll-report", json=report, headers=world.auth)
+    assert len(world.gotify.messages) == 1  # link still valid: no reminder
+
+    world.clock.now += TOKEN_TTL_SECONDS + 1
+    assert world.store.pending_count() == 0
+    assert world.store.expired_pending_scopes() == [SCOPE]
+    world.client.post("/api/poll-report", json=report, headers=world.auth)
+    old_link, new = world.gotify.links()
+    assert old_link == old and new != old
+    assert "2 nieuw" in world.gotify.messages[-1]["message"]
+    assert world.client.get(new).status_code == 200
+    assert world.store.pending_count() == 1
+    assert world.store.expired_pending_scopes() == []
+
+    world.client.post("/api/poll-report", json=report, headers=world.auth)
+    assert len(world.gotify.messages) == 2  # announced once per expiry, not per poll
+
+
+def test_expired_changeset_without_remaining_diff_is_dropped_silently(world):
+    from vonk.store import TOKEN_TTL_SECONDS
+
+    post_desired(world, [ev()])
+    world.clock.now += TOKEN_TTL_SECONDS + 1
+    for i, e in enumerate([ev()]):  # the event got into the calendar another way
+        world.caldav.seed(f"{i}.ics", to_ics(mint_uid(), e, world.settings.child_names))
+    world.client.post("/api/poll-report", json={"ok": True}, headers=world.auth)
+    assert len(world.gotify.messages) == 1
+    assert world.store.expired_pending_scopes() == []
+
+
 # --- degraded ----------------------------------------------------------------------------
 
 
