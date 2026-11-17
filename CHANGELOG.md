@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.2.12] - 2026-11-17
+### :bug: Bug Fixes
+- [`781196e`](https://github.com/visibilityspots/vonk/commit/781196eae4f3757f1d1ba1b93602c1cf96d2157d) - **security**: apt-get upgrade in the image, test on python 3.15 *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+### :wrench: Chores
+- [`6b6d5f9`](https://github.com/visibilityspots/vonk/commit/6b6d5f95572fbd95e4ec34ba7fd1f5ad3387aea9) - **deps**: bump anthropic from 2.3.0 to 2.6.0 *(PR [#18](https://github.com/visibilityspots/vonk/pull/18) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`fe2c50f`](https://github.com/visibilityspots/vonk/commit/fe2c50f7b7a46ae3f8416f5bf3a6a251ea3e2b8e) - **deps-dev**: bump ruff from 0.17.3 to 0.17.4 *(PR [#17](https://github.com/visibilityspots/vonk/pull/17) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`0c87c37`](https://github.com/visibilityspots/vonk/commit/0c87c375476eb4e3bb894527f2058e27c0920baf) - **deps**: bump starlette from 1.9.0 to 1.10.0 *(PR [#16](https://github.com/visibilityspots/vonk/pull/16) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`0be30c0`](https://github.com/visibilityspots/vonk/commit/0be30c0be97f3396ac7de0e347336213894d08e3) - **deps-dev**: bump ruff from 0.17.4 to 0.17.5 *(PR [#21](https://github.com/visibilityspots/vonk/pull/21) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`94985e6`](https://github.com/visibilityspots/vonk/commit/94985e680cfe5544c8de87890cf2b16ddd50657d) - **deps**: bump anthropic from 2.6.0 to 2.8.0 *(PR [#20](https://github.com/visibilityspots/vonk/pull/20) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`afe85ab`](https://github.com/visibilityspots/vonk/commit/afe85ab8d80723cd7650351987fe034fa3c01586) - **deps**: bump python from 3.12-slim to 3.15-slim *(PR [#19](https://github.com/visibilityspots/vonk/pull/19) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+
+
 ## [v0.2.11] - 2026-11-08
 ### :bug: Bug Fixes
 - [`4548d7e`](https://github.com/visibilityspots/vonk/commit/4548d7e615838cafab77b98c1fe41cfca492edad) - **api**: re-announce a changeset whose approve link expired *(PR [#14](https://github.com/visibilityspots/vonk/pull/14) by [@visibilityspots](https://github.com/visibilityspots))*
@@ -105,3 +118,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.2.9]: https://github.com/visibilityspots/vonk/compare/v0.2.8...v0.2.9
 [v0.2.10]: https://github.com/visibilityspots/vonk/compare/v0.2.9...v0.2.10
 [v0.2.11]: https://github.com/visibilityspots/vonk/compare/v0.2.10...v0.2.11
+[v0.2.12]: https://github.com/visibilityspots/vonk/compare/v0.2.11...v0.2.12
