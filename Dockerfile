@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 # pdftotext turns the vonk PDFs into text before extraction; image-only PDFs go
 # through tesseract (Dutch data) instead
