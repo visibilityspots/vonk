@@ -295,6 +295,36 @@ X-VONK-DATE:2026-11-28
 X-VONK-SCOPE:welpen:2026-11
 END:VEVENT
 BEGIN:VEVENT
+SUMMARY:Scouts Welpen - Bezoek Sint
+DTSTART;TZID=Europe/Brussels:20261206T140000
+DTEND;TZID=Europe/Brussels:20261206T163000
+DTSTAMP:20261118T110102Z
+UID:vonk-3cb4581e5a14f1ed107eaa0b@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:ZIE GINDS KOMT WELPEN AT THE\nhttps://scoutstervant.be/wp-cont
+ ent/uploads/2026/11/Welpen-in-december-1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Welpen-in-december
+ -1.pdf
+X-VONK-DATE:2026-12-06
+X-VONK-SCOPE:welpen:2026-12
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Welpen - Filmavond
+DTSTART;TZID=Europe/Brussels:20261212T190000
+DTEND;TZID=Europe/Brussels:20261212T210000
+DTSTAMP:20261118T110102Z
+UID:vonk-2ed0d0f39f4bd9e5305d62b0@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:WELPEN AT THE DE STOOMBOOT! MOVIES!\nhttps://scoutstervant.be/
+ wp-content/uploads/2026/11/Welpen-in-december-1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Welpen-in-december
+ -1.pdf
+X-VONK-DATE:2026-12-12
+X-VONK-SCOPE:welpen:2026-12
+END:VEVENT
+BEGIN:VEVENT
 SUMMARY:Scouts - Kerstfeestje
 DTSTART;TZID=Europe/Brussels:20261218T190000
 DTEND;TZID=Europe/Brussels:20261218T210000
@@ -308,6 +338,21 @@ URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
  df
 X-VONK-DATE:2026-12-18
 X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Welpen - Kerstfeestje
+DTSTART;TZID=Europe/Brussels:20261218T190000
+DTEND;TZID=Europe/Brussels:20261218T210000
+DTSTAMP:20261118T110102Z
+UID:vonk-18dc825a120c9a3cd5485a15@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:IT'S THE MOST WONDERFUL NIGHT OF THE YEAR!\nhttps://scoutsterv
+ ant.be/wp-content/uploads/2026/11/Welpen-in-december-1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Welpen-in-december
+ -1.pdf
+X-VONK-DATE:2026-12-18
+X-VONK-SCOPE:welpen:2026-12
 END:VEVENT
 BEGIN:VEVENT
 SUMMARY:Scouts - Middernachtmis
