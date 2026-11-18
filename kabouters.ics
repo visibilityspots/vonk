@@ -321,6 +321,36 @@ X-VONK-DATE:2026-11-28
 X-VONK-SCOPE:kabouters:2026-11
 END:VEVENT
 BEGIN:VEVENT
+SUMMARY:Scouts Kabouters - Sinterklaas
+DTSTART;TZID=Europe/Brussels:20261206T140000
+DTEND;TZID=Europe/Brussels:20261206T163000
+DTSTAMP:20261118T110052Z
+UID:vonk-8faf492a66538ed8b73220aa@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Vandaag komt de Sint naar de scouts!\nhttps://scoutstervant.be
+ /wp-content/uploads/2026/11/Vonk-december-kabouters.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Vonk-december-kabo
+ uters.pdf
+X-VONK-DATE:2026-12-06
+X-VONK-SCOPE:kabouters:2026-12
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Kabouters - Filmavond
+DTSTART;TZID=Europe/Brussels:20261212T180000
+DTEND;TZID=Europe/Brussels:20261212T210000
+DTSTAMP:20261118T110052Z
+UID:vonk-6a8d506a62ae0a1785279277@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/11/Vonk-decem
+ ber-kabouters.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Vonk-december-kabo
+ uters.pdf
+X-VONK-DATE:2026-12-12
+X-VONK-SCOPE:kabouters:2026-12
+END:VEVENT
+BEGIN:VEVENT
 SUMMARY:Scouts - Kerstfeestje
 DTSTART;TZID=Europe/Brussels:20261218T190000
 DTEND;TZID=Europe/Brussels:20261218T210000
@@ -334,6 +364,22 @@ URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
  df
 X-VONK-DATE:2026-12-18
 X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Kabouters - Kerstfeest
+DTSTART;TZID=Europe/Brussels:20261218T190000
+DTEND;TZID=Europe/Brussels:20261218T210000
+DTSTAMP:20261118T110052Z
+UID:vonk-677061bb2c302a776175497e@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Neem iets lekkers mee om te delen\, want vandaag vieren we sam
+ en kerst!\nhttps://scoutstervant.be/wp-content/uploads/2026/11/Vonk-decemb
+ er-kabouters.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Vonk-december-kabo
+ uters.pdf
+X-VONK-DATE:2026-12-18
+X-VONK-SCOPE:kabouters:2026-12
 END:VEVENT
 BEGIN:VEVENT
 SUMMARY:Scouts - Middernachtmis
