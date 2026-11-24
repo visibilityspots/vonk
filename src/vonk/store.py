@@ -274,23 +274,24 @@ class Store:
                 (pdf_sha256, vision_version, text, self.clock()),
             )
 
-    def record_dispatch(self, pdf_sha256: str, post_id: int, min_interval: float) -> bool:
-        """Record a vision dispatch for ``pdf_sha256`` unless one is less than
-        ``min_interval`` seconds old. True when the caller may dispatch now."""
+    def dispatch_allowed(self, pdf_sha256: str, min_interval: float) -> bool:
+        """False while the last successful vision dispatch of ``pdf_sha256`` is less than
+        ``min_interval`` seconds old."""
+        rows = self._query(
+            "SELECT dispatched_at FROM vision_dispatches WHERE pdf_sha256=?", (pdf_sha256,)
+        )
+        return not rows or self.clock() - rows[0]["dispatched_at"] >= min_interval
+
+    def record_dispatch(self, pdf_sha256: str, post_id: int) -> None:
+        """Record a successful vision dispatch; the first dispatch time is kept."""
         now = self.clock()
         with self._tx() as c:
-            row = c.execute(
-                "SELECT dispatched_at FROM vision_dispatches WHERE pdf_sha256=?", (pdf_sha256,)
-            ).fetchone()
-            if row is not None and now - row["dispatched_at"] < min_interval:
-                return False
             c.execute(
                 "INSERT INTO vision_dispatches (pdf_sha256, post_id, first_dispatched_at,"
                 " dispatched_at) VALUES (?,?,?,?) ON CONFLICT(pdf_sha256) DO UPDATE SET"
                 " post_id=excluded.post_id, dispatched_at=excluded.dispatched_at",
                 (pdf_sha256, post_id, now, now),
             )
-            return True
 
     def vision_pending(self, vision_version: str) -> list[float]:
         """First dispatch time of every dispatched PDF that has no transcript yet."""

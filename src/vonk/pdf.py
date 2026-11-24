@@ -39,6 +39,11 @@ class PdfError(RuntimeError):
 class EmptyPdfError(PdfError):
     """The PDF has no text layer and OCR found no text either."""
 
+    def __init__(self, message: str, sha256: str | None = None) -> None:
+        super().__init__(message)
+        self.sha256 = sha256
+        """sha256 of the downloaded PDF, so the vision path can still take it."""
+
 
 @dataclass(frozen=True, slots=True)
 class PdfText:
@@ -172,5 +177,5 @@ def fetch_text(
         return PdfText(sha256=sha256, text=text)
     text = ocr(data)
     if not text.strip():
-        raise EmptyPdfError("PDF has no text layer and OCR found no text")
+        raise EmptyPdfError("PDF has no text layer and OCR found no text", sha256)
     return PdfText(sha256=sha256, text=text, ocr=True)

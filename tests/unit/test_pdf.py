@@ -168,8 +168,9 @@ def test_fetch_text_keeps_the_text_layer_when_there_is_one():
 @needs_ocr
 def test_fetch_text_raises_empty_pdf_error_when_ocr_finds_nothing():
     client = _client(lambda r: httpx.Response(200, content=BLANK_PDF))
-    with pytest.raises(EmptyPdfError, match="OCR found no text"):
+    with pytest.raises(EmptyPdfError, match="OCR found no text") as info:
         fetch_text(client, "https://scoutstervant.be/u/blank.pdf")
+    assert info.value.sha256 == hashlib.sha256(BLANK_PDF).hexdigest()
 
 
 def test_download_rejects_declared_oversize():

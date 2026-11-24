@@ -221,13 +221,17 @@ def test_transcripts_and_vision_dispatches(tmp_path):
     assert store.get_transcript("sha", "v1") == "Zondag 8 november"
     assert store.get_transcript("sha", "v2") is None
 
-    assert store.record_dispatch("a", 1, 100) is True
+    assert store.dispatch_allowed("a", 100) is True
+    store.record_dispatch("a", 1)
     now[0] += 50
-    assert store.record_dispatch("a", 1, 100) is False
-    assert store.record_dispatch("b", 2, 100) is True
+    assert store.dispatch_allowed("a", 100) is False
+    assert store.dispatch_allowed("b", 100) is True
+    store.record_dispatch("b", 2)
     assert store.vision_pending("v1") == [1000.0, 1050.0]
     now[0] += 60
-    assert store.record_dispatch("a", 1, 100) is True
+    assert store.dispatch_allowed("a", 100) is True
+    store.record_dispatch("a", 1)
+    assert store.dispatch_allowed("a", 100) is False
     assert store.vision_pending("v1") == [1000.0, 1050.0]  # first dispatch time is kept
     store.put_transcript("a", "v1", "text")
     assert store.vision_pending("v1") == [1050.0]

@@ -89,8 +89,10 @@ icons, so OCR text is never extracted from; it only serves as a weak check after
    /api/transcripts/<sha256>/<vision version>`). Without one it dispatches the vision job
    through the Nomad task API (`$NOMAD_SECRETS_DIR/api.sock`, the poll job needs
    `identity { env = true }` and a policy with `dispatch-job` on the vision job's
-   namespace), at most once per 12 hours per PDF (`POST /api/vision-dispatch`). The post
-   stays unseen, so a later poll picks the transcript up.
+   namespace). A successful dispatch is recorded (`POST /api/vision-dispatch`) and blocks
+   that PDF for 12 hours; a failed one counts in `vonk_vision_errors_total` and is retried
+   by the next poll. The post stays unseen, so a later poll picks the transcript up. With
+   dispatch enabled this also holds for a PDF on which OCR finds no text at all.
 2. `vonk vision` (a parameterized Nomad job on a GPU node with an Ollama sidecar) downloads
    the PDF from the same allowlisted hosts, checks its sha256, renders every page at 150 dpi,
    waits until Ollama lists the model, and transcribes every page twice. Only when both runs
@@ -103,7 +105,8 @@ icons, so OCR text is never extracted from; it only serves as a weak check after
 
 A failure anywhere on this path never falls back to the OCR text. Metrics:
 `vonk_vision_pending` and `vonk_vision_oldest_pending_age_seconds` (dispatched PDFs without
-a transcript), `vonk_vision_dispatches_total`, `vonk_vision_errors_total` and
+a transcript), `vonk_vision_dispatches_total`, `vonk_vision_errors_total` (failed
+dispatches and failed vision runs) and
 `vonk_last_{completed,successful}_vision_timestamp`. The model has to be pulled into the
 Ollama model store beforehand; pin it with `VONK_VISION_MODEL_DIGEST`.
 

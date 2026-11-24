@@ -57,7 +57,8 @@ ROUTES = [
     ("POST", "/api/poll-report", {"ok": True, "errors": [], "warnings": ["w"]}),
     ("GET", f"/api/transcripts/{SHA}/v1", None),
     ("PUT", f"/api/transcripts/{SHA}/v1", {"text": "Zondag 8 november Kampmenu"}),
-    ("POST", "/api/vision-dispatch", {"pdf_sha256": SHA, "post_id": 2736}),
+    ("GET", f"/api/vision-dispatch/{SHA}", None),
+    ("POST", "/api/vision-dispatch", {"pdf_sha256": SHA, "post_id": 2736, "ok": True}),
 ]
 
 
@@ -426,9 +427,17 @@ def test_transcript_put_validation(world, sha, payload):
     assert world.store.get_transcript(sha, "v1") is None
 
 
-def dispatch(w, sha=SHA, post_id=2736):
-    return w.client.post("/api/vision-dispatch", json={"pdf_sha256": sha, "post_id": post_id},
-                         headers=w.auth)  # fmt: skip
+def allowed(w, sha=SHA) -> bool:
+    resp = w.client.get(f"/api/vision-dispatch/{sha}", headers=w.auth)
+    assert resp.status_code == 200
+    return resp.json()["dispatch"]
+
+
+def dispatch(w, sha=SHA, post_id=2736, ok=True):
+    body = {"pdf_sha256": sha, "post_id": post_id, "ok": ok}
+    resp = w.client.post("/api/vision-dispatch", json=body, headers=w.auth)
+    assert resp.status_code == 200
+    return resp
 
 
 def metric(w, name: str) -> float:
@@ -438,24 +447,38 @@ def metric(w, name: str) -> float:
     return float(m.group(1))
 
 
-def test_vision_dispatch_is_allowed_once_per_12_hours(world):
-    assert dispatch(world).json() == {"dispatch": True}
+def test_successful_dispatch_blocks_the_pdf_for_12_hours(world):
+    assert allowed(world) is True
+    dispatch(world)
     world.clock.now += 11 * 3600
-    assert dispatch(world).json() == {"dispatch": False}
+    assert allowed(world) is False
+    assert allowed(world, "b" * 64) is True
     assert metric(world, "vonk_vision_pending") == 1
     assert metric(world, "vonk_vision_dispatches_total") == 1
     world.clock.now += 3600
-    assert dispatch(world).json() == {"dispatch": True}
-    assert dispatch(world, sha="b" * 64).json() == {"dispatch": True}
+    assert allowed(world) is True
+    dispatch(world)
+    dispatch(world, sha="b" * 64)
     assert metric(world, "vonk_vision_dispatches_total") == 3
     assert metric(world, "vonk_vision_pending") == 2
 
 
+def test_failed_dispatch_is_counted_but_never_blocks_a_retry(world):
+    dispatch(world, ok=False)
+    assert allowed(world) is True
+    assert world.store.vision_pending("v1") == []
+    assert metric(world, "vonk_vision_errors_total") == 1
+    assert metric(world, "vonk_vision_dispatches_total") == 0
+
+
 def test_vision_dispatch_validation(world):
-    for payload in ({"pdf_sha256": SHA}, {"pdf_sha256": "x", "post_id": 1}, ["x"]):
+    for payload in ({"pdf_sha256": SHA, "ok": True}, {"pdf_sha256": SHA, "post_id": 1},
+                    {"pdf_sha256": "x", "post_id": 1, "ok": True},
+                    {"pdf_sha256": SHA, "post_id": 1, "ok": "yes"}, ["x"]):  # fmt: skip
         resp = world.client.post("/api/vision-dispatch", json=payload, headers=world.auth)
         assert resp.status_code == 400
     assert world.store.vision_pending("v1") == []
+    assert world.client.get("/api/vision-dispatch/x", headers=world.auth).status_code == 400
 
 
 def test_vision_pending_age_and_transcript_clears_it(world, monkeypatch):

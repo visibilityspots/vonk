@@ -14,8 +14,11 @@ Wire shapes (matched by ``vonk.poll.ServiceClient``):
   events, warnings}`` -> ``{"changeset_id": str|None, "ops": int, ...}``
 - ``GET  /api/transcripts/{sha}/{vision_version}`` -> ``{"text": str}`` or 404
 - ``PUT  /api/transcripts/{sha}/{vision_version}`` ``{text}`` -> ``{}`` (from ``vonk vision``)
-- ``POST /api/vision-dispatch`` ``{pdf_sha256, post_id}`` -> ``{"dispatch": bool}``: records
-  a vision dispatch unless one for that PDF is less than 12 hours old
+- ``GET  /api/vision-dispatch/{sha}`` -> ``{"dispatch": bool}``: false while the last
+  successful vision dispatch of that PDF is less than 12 hours old
+- ``POST /api/vision-dispatch`` ``{pdf_sha256, post_id, ok}`` -> ``{}``: the outcome of a
+  dispatch; ``ok`` records it (starting the 12 hour window), a failure only counts an error
+  so the next poll tries again
 - ``POST /api/poll-report`` ``{source, started, finished, ok, errors, warnings}`` -> ``{}``;
   ``source`` is ``poll`` (default) or ``vision``, each with its own heartbeat gauges
 
@@ -285,20 +288,30 @@ class Service:
         self.store.put_transcript(sha, vision_version, text)
         self.metrics.refresh(self.store)
 
-    def vision_dispatch(self, body: Any) -> bool:
-        """Record a vision dispatch; False when one for this PDF is still recent."""
+    def dispatch_allowed(self, sha: str) -> bool:
+        if not _SHA256.fullmatch(sha):
+            raise BadRequest("not a sha256")
+        return self.store.dispatch_allowed(sha, VISION_DISPATCH_INTERVAL)
+
+    def vision_dispatch(self, body: Any) -> None:
+        """Record the outcome of a vision dispatch: a success starts the 12 hour window,
+        a failure only counts as a vision error, so the next poll dispatches again."""
         try:
             sha = str(body["pdf_sha256"])
             post_id = int(body["post_id"])
+            ok = body["ok"]
         except (KeyError, TypeError, ValueError) as exc:
             raise BadRequest(f"invalid vision-dispatch body: {exc}") from exc
         if not _SHA256.fullmatch(sha):
             raise BadRequest("not a sha256")
-        allowed = self.store.record_dispatch(sha, post_id, VISION_DISPATCH_INTERVAL)
-        if allowed:
-            self.metrics.vision_dispatches.inc()
-            self.metrics.refresh(self.store)
-        return allowed
+        if not isinstance(ok, bool):
+            raise BadRequest("'ok' must be a boolean")
+        if not ok:
+            self.metrics.vision_errors.inc()
+            return
+        self.store.record_dispatch(sha, post_id)
+        self.metrics.vision_dispatches.inc()
+        self.metrics.refresh(self.store)
 
     def poll_report(self, body: Mapping[str, Any]) -> None:
         if not isinstance(body, Mapping) or not isinstance(body.get("ok"), bool):
@@ -601,7 +614,16 @@ def routes(service: Service) -> list[Route]:
             return denied
         try:
             body = await _json(request)
-            allowed = await run_in_threadpool(service.vision_dispatch, body)
+            await run_in_threadpool(service.vision_dispatch, body)
+        except BadRequest as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({})
+
+    async def dispatch_allowed(request: Request) -> Response:
+        if (denied := _guard(service, request)) is not None:
+            return denied
+        try:
+            allowed = await run_in_threadpool(service.dispatch_allowed, request.path_params["sha"])
         except BadRequest as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse({"dispatch": allowed})
@@ -624,5 +646,6 @@ def routes(service: Service) -> list[Route]:
             "/api/transcripts/{sha}/{vision_version}", transcript, methods=["GET", "PUT"]
         ),
         Route("/api/vision-dispatch", vision_dispatch, methods=["POST"]),
+        Route("/api/vision-dispatch/{sha}", dispatch_allowed, methods=["GET"]),
         Route("/api/poll-report", poll_report, methods=["POST"]),
     ]

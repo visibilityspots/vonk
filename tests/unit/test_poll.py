@@ -47,6 +47,7 @@ class FakeWorld:
         self.cache = cache or {}
         self.transcripts = transcripts or {}
         self.dispatch_allowed = dispatch_allowed
+        self.dispatch_checks: list[str] = []
         self.dispatch_requests: list[dict] = []
         self.service_status = service_status
         self.service_down = service_down
@@ -81,9 +82,12 @@ class FakeWorld:
             _, _, _, sha, version = path.split("/")
             text = self.transcripts.get((sha, version))
             return httpx.Response(404) if text is None else httpx.Response(200, json={"text": text})
+        if path.startswith("/api/vision-dispatch/"):
+            self.dispatch_checks.append(path.split("/")[3])
+            return httpx.Response(200, json={"dispatch": self.dispatch_allowed})
         if path == "/api/vision-dispatch":
             self.dispatch_requests.append(json.loads(request.content))
-            return httpx.Response(200, json={"dispatch": self.dispatch_allowed})
+            return httpx.Response(200, json={})
         if path.startswith("/api/scopes/") and path.endswith("/desired"):
             self.desired[path.split("/")[3]] = json.loads(request.content)
             return httpx.Response(200, json={"changeset_id": "cs-1", "ops": 5})
@@ -473,7 +477,11 @@ def test_image_only_pdf_without_transcript_dispatches_the_vision_job():
     assert run(world, env=VISION_ENV, fetch=image_fetch, extractor=extractor,
                dispatch=dispatcher) == 0  # fmt: skip
     assert dispatcher.calls == [(IMAGE["url"], IMAGE["sha256"])]
-    assert world.dispatch_requests == [{"pdf_sha256": IMAGE["sha256"], "post_id": 2647}]
+    assert world.dispatch_checks == [IMAGE["sha256"]]
+    # recorded only after the dispatch succeeded
+    assert world.dispatch_requests == [
+        {"pdf_sha256": IMAGE["sha256"], "post_id": 2647, "ok": True}
+    ]
     assert "jeevees:2026-10" not in world.desired  # not posted, so not seen either
     assert "jeevees-2026-10" not in extractor.calls  # OCR text is never extracted from
     assert set(world.desired) == {"groep:2026-2027", "kabouters:2026-10"}
@@ -484,7 +492,8 @@ def test_recent_dispatch_is_not_repeated():
     world = FakeWorld(dispatch_allowed=False)
     dispatcher = Dispatcher()
     assert run(world, env=VISION_ENV, fetch=image_fetch, dispatch=dispatcher) == 0
-    assert len(world.dispatch_requests) == 1 and dispatcher.calls == []
+    assert world.dispatch_checks == [IMAGE["sha256"]]
+    assert world.dispatch_requests == [] and dispatcher.calls == []
     assert "jeevees:2026-10" not in world.desired
 
 
@@ -504,6 +513,10 @@ def test_failed_dispatch_fails_the_run():
     world = FakeWorld()
     assert run(world, env=VISION_ENV, fetch=image_fetch, dispatch=Dispatcher(fail=True)) == 1
     assert world.reports[0]["errors"] == ["jeevees:2026-10 (post 2647): Nomad dispatch: HTTP 403"]
+    # reported as a failure, so the service counts it and does not start the 12 h window
+    assert world.dispatch_requests == [
+        {"pdf_sha256": IMAGE["sha256"], "post_id": 2647, "ok": False}
+    ]
 
 
 def test_transcript_is_extracted_and_cached_under_the_vision_key():
@@ -575,3 +588,35 @@ def test_ocr_guard_is_case_and_space_insensitive():
     assert ocr_guard(spans, "zondag 8 KAMPMENU\nde kring") == [
         "vision guard: title 'Filmmarathon' not found in the OCR text"
     ]
+
+
+def empty_fetch(url: str) -> PdfText:
+    """The jeevees vonk is an image-only PDF on which tesseract finds nothing at all."""
+    if url == IMAGE["url"]:
+        raise EmptyPdfError("PDF has no text layer and OCR found no text", IMAGE["sha256"])
+    return fake_fetch(url)
+
+
+def test_pdf_without_any_ocr_text_takes_the_vision_path_when_dispatch_is_enabled():
+    world = FakeWorld()
+    dispatcher = Dispatcher()
+    assert run(world, env=VISION_ENV, fetch=empty_fetch, dispatch=dispatcher) == 0
+    assert dispatcher.calls == [(IMAGE["url"], IMAGE["sha256"])]
+    assert world.reports[0]["warnings"] == []
+
+    world = FakeWorld(transcripts={(IMAGE["sha256"], VISION_VERSION): IMAGE_TEXT})
+    assert run(world, env=VISION_ENV, fetch=empty_fetch, dispatch=Dispatcher()) == 0
+    body = world.desired["jeevees:2026-10"]
+    assert body["ocr"] is True and body["prompt_version"] == VISION_PROMPT_VERSION
+    assert VISION_WARNING in body["warnings"]
+    assert "vision guard: no OCR text available to check the titles against" in body["warnings"]
+    assert not any("not found in the OCR text" in w for w in body["warnings"])
+
+
+def test_pdf_without_any_ocr_text_is_still_skipped_without_dispatch():
+    world = FakeWorld(transcripts={(IMAGE["sha256"], VISION_VERSION): IMAGE_TEXT})
+    dispatcher = Dispatcher()
+    assert run(world, fetch=empty_fetch, dispatch=dispatcher) == 0
+    assert dispatcher.calls == [] and "jeevees:2026-10" not in world.desired
+    (report,) = world.reports
+    assert any("PDF has no text layer and OCR found no text" in w for w in report["warnings"])

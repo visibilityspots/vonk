@@ -145,17 +145,23 @@ class ServiceClient:
         if not resp.is_success:
             raise self._fail("PUT", path, resp)
 
-    def vision_dispatch(self, sha256: str, post_id: int) -> bool:
-        """Record a vision dispatch; False when one for this PDF is still recent."""
-        resp = self._request(
-            "POST", "/api/vision-dispatch", json={"pdf_sha256": sha256, "post_id": post_id}
-        )
+    def dispatch_allowed(self, sha256: str) -> bool:
+        """False while a successful vision dispatch of this PDF is still recent."""
+        path = f"/api/vision-dispatch/{sha256}"
+        resp = self._request("GET", path)
         if not resp.is_success:
-            raise self._fail("POST", "/api/vision-dispatch", resp)
+            raise self._fail("GET", path, resp)
         try:
             return bool(resp.json()["dispatch"])
         except (ValueError, KeyError, TypeError) as exc:
-            raise ServiceError(f"POST /api/vision-dispatch: malformed body: {exc}") from exc
+            raise ServiceError(f"GET {path}: malformed body: {exc}") from exc
+
+    def vision_dispatch(self, sha256: str, post_id: int, ok: bool) -> None:
+        """Report the outcome of a vision dispatch (only a success is recorded)."""
+        body = {"pdf_sha256": sha256, "post_id": post_id, "ok": ok}
+        resp = self._request("POST", "/api/vision-dispatch", json=body)
+        if not resp.is_success:
+            raise self._fail("POST", "/api/vision-dispatch", resp)
 
     def post_desired(self, scope_key: str, body: Mapping[str, Any]) -> dict[str, Any]:
         path = f"/api/scopes/{scope_key}/desired"
@@ -189,6 +195,8 @@ def ocr_guard(spans: Sequence[ExtractedSpan], ocr_text: str) -> list[str]:
     """Weak check of a vision extraction: every title should also occur in the OCR text
     (case- and space-insensitive). A miss is a warning, never a reason to drop the item."""
     haystack = _squash(ocr_text)
+    if not haystack:
+        return ["vision guard: no OCR text available to check the titles against"]
     return [
         f"vision guard: title {s.title_span!r} not found in the OCR text"
         for s in spans
@@ -273,16 +281,28 @@ class PollRun:
             self.warnings.append(f"{label}: image-only PDF skipped (vision dispatch disabled)")
             log.warning("%s: image-only PDF skipped (vision dispatch disabled)", label)
             return
-        if not self.service.vision_dispatch(pdf.sha256, post.id):
+        if not self.service.dispatch_allowed(pdf.sha256):
             log.info("%s: vision job dispatched recently; waiting for its transcript", label)
             return
-        job_id = self.dispatch_vision(post.pdf_url, pdf.sha256)
+        try:
+            job_id = self.dispatch_vision(post.pdf_url, pdf.sha256)
+        except VisionError:
+            # not recorded, so the next poll dispatches again; counted as a vision error
+            self.service.vision_dispatch(pdf.sha256, post.id, ok=False)
+            raise
+        self.service.vision_dispatch(pdf.sha256, post.id, ok=True)
         log.info("%s: image-only PDF, dispatched vision job %s", label, job_id)
 
     def process(self, item: IngestedPost) -> None:
         post, scope = item.post, item.scope
         assert post.pdf_url is not None  # ingest only yields posts with a PDF link
-        pdf = self.fetch_pdf(post.pdf_url)
+        try:
+            pdf = self.fetch_pdf(post.pdf_url)
+        except EmptyPdfError as exc:
+            # OCR found nothing, but the vision model may still read the poster
+            if not (self.settings.vonk_vision_dispatch and exc.sha256):
+                raise
+            pdf = PdfText(sha256=exc.sha256, text="", ocr=True)
         if pdf.ocr:
             transcript = self.service.transcript(pdf.sha256, VISION_VERSION)
             if transcript is None:

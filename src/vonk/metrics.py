@@ -98,10 +98,12 @@ class Metrics:
             registry=r,
         )
         self.vision_dispatches = Counter(
-            "vonk_vision_dispatches", "Vision jobs the poll was allowed to dispatch", registry=r
+            "vonk_vision_dispatches", "Vision jobs dispatched successfully", registry=r
         )
         self.vision_errors = Counter(
-            "vonk_vision_errors", "Vision job reports with ok=false", registry=r
+            "vonk_vision_errors",
+            "Failed vision dispatches and vision job reports with ok=false",
+            registry=r,
         )
         self.scopes_needing_attention = Gauge(
             "vonk_scopes_needing_attention",
