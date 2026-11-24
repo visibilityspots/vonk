@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.3.0] - 2026-11-24
+### :sparkles: New Features
+- [`05024eb`](https://github.com/visibilityspots/vonk/commit/05024eb15681e61b5629ab44636cf1d6f1b1a450) - **vision**: read image-only vonks with a local vision model *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+### :bug: Bug Fixes
+- [`c7a6112`](https://github.com/visibilityspots/vonk/commit/c7a61125ec604979ecd593897d4b62f3935ad7b4) - **vision**: record a dispatch only after it succeeded, read PDFs without OCR text *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+- [`2234584`](https://github.com/visibilityspots/vonk/commit/22345849a319a780cd07741419ecb96ebce58d8d) - **vision**: review fixes for dispatch, version skew and pending posts *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+### :wrench: Chores
+- [`3f6a612`](https://github.com/visibilityspots/vonk/commit/3f6a612e8aa7dc373f172499fc03c6ef0d3609ba) - **release**: 0.3.0, changelog comes from the release job *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+
 ## [v0.2.12] - 2026-11-17
 ### :bug: Bug Fixes
 - [`781196e`](https://github.com/visibilityspots/vonk/commit/781196eae4f3757f1d1ba1b93602c1cf96d2157d) - **security**: apt-get upgrade in the image, test on python 3.15 *(commit by [@visibilityspots](https://github.com/visibilityspots))*
@@ -119,3 +131,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.2.10]: https://github.com/visibilityspots/vonk/compare/v0.2.9...v0.2.10
 [v0.2.11]: https://github.com/visibilityspots/vonk/compare/v0.2.10...v0.2.11
 [v0.2.12]: https://github.com/visibilityspots/vonk/compare/v0.2.11...v0.2.12
+[v0.3.0]: https://github.com/visibilityspots/vonk/compare/v0.2.12...v0.3.0
