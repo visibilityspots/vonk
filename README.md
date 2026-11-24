@@ -89,15 +89,18 @@ icons, so OCR text is never extracted from; it only serves as a weak check after
    /api/transcripts/<sha256>/<vision version>`). Without one it dispatches the vision job
    through the Nomad task API (`$NOMAD_SECRETS_DIR/api.sock`, the poll job needs
    `identity { env = true }` and a policy with `dispatch-job` on the vision job's
-   namespace). A successful dispatch is recorded (`POST /api/vision-dispatch`) and blocks
-   that PDF for 12 hours; a failed one counts in `vonk_vision_errors_total` and is retried
-   by the next poll. The post stays unseen, so a later poll picks the transcript up. With
+   namespace). The dispatch meta carries `PDF_URL`, `PDF_SHA256` and `VISION_VERSION`
+   (declare them as meta on the parameterized job). A successful dispatch is recorded
+   (`POST /api/vision-dispatch`), blocks that PDF for 12 hours and marks the post seen as
+   image-only, so polls in that window skip it without downloading the PDF again. A failed
+   dispatch counts in `vonk_vision_errors_total` and is retried by the next poll. With
    dispatch enabled this also holds for a PDF on which OCR finds no text at all.
 2. `vonk vision` (a parameterized Nomad job on a GPU node with an Ollama sidecar) downloads
-   the PDF from the same allowlisted hosts, checks its sha256, renders every page at 150 dpi,
-   waits until Ollama lists the model, and transcribes every page twice. Only when both runs
-   contain exactly the same digits is the transcript stored. It always reports back with
-   `source = "vision"`, which has its own heartbeat gauges.
+   the PDF from the same allowlisted hosts, checks its sha256, renders every page at 150 and
+   at 200 dpi, waits until Ollama lists the model, and transcribes both renders of every
+   page. Only when both contain exactly the same digits is the transcript stored. A job
+   image whose `VISION_VERSION` differs from the dispatched one refuses the run. It always
+   reports back with `source = "vision"`, which has its own heartbeat gauges.
 3. The next poll extracts from the transcript with Claude like from a text layer and caches
    the spans under the prompt version plus `-vision1`. The ChangeSet carries the warning
    "vision transcript: check dates against the poster", plus a warning per title that does
@@ -109,6 +112,12 @@ a transcript), `vonk_vision_dispatches_total`, `vonk_vision_errors_total` (faile
 dispatches and failed vision runs) and
 `vonk_last_{completed,successful}_vision_timestamp`. The model has to be pulled into the
 Ollama model store beforehand; pin it with `VONK_VISION_MODEL_DIGEST`.
+
+Seen posts carry an `ocr` flag (image-only PDF). Rows from before the flag existed are
+processed once more (a cache hit for text PDFs, so no LLM call and no new ChangeSet). Every
+write of a seen row sets the flag, so a changed PDF never keeps the old one. Rolling back
+to a version without the flag can leave a stale flag on a post that version re-processed;
+after rolling forward again that costs at most one extra download of that post.
 
 ### Baikal calendar
 

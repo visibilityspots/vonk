@@ -156,9 +156,14 @@ class ServiceClient:
         except (ValueError, KeyError, TypeError) as exc:
             raise ServiceError(f"GET {path}: malformed body: {exc}") from exc
 
-    def vision_dispatch(self, sha256: str, post_id: int, ok: bool) -> None:
-        """Report the outcome of a vision dispatch (only a success is recorded)."""
-        body = {"pdf_sha256": sha256, "post_id": post_id, "ok": ok}
+    def vision_dispatch(
+        self, sha256: str, post_id: int, ok: bool, *, modified: str = "", scope_key: str = ""
+    ) -> None:
+        """Report the outcome of a vision dispatch (only a success is recorded; it also
+        marks the post seen as image-only, which needs ``modified`` and ``scope_key``)."""
+        body: dict[str, Any] = {"pdf_sha256": sha256, "post_id": post_id, "ok": ok}
+        if ok:
+            body |= {"modified": modified, "scope_key": scope_key}
         resp = self._request("POST", "/api/vision-dispatch", json=body)
         if not resp.is_success:
             raise self._fail("POST", "/api/vision-dispatch", resp)
@@ -288,10 +293,45 @@ class PollRun:
             job_id = self.dispatch_vision(post.pdf_url, pdf.sha256)
         except VisionError:
             # not recorded, so the next poll dispatches again; counted as a vision error
-            self.service.vision_dispatch(pdf.sha256, post.id, ok=False)
+            self._report_dispatch(item, pdf.sha256, ok=False)
             raise
-        self.service.vision_dispatch(pdf.sha256, post.id, ok=True)
         log.info("%s: image-only PDF, dispatched vision job %s", label, job_id)
+        self._report_dispatch(item, pdf.sha256, ok=True)
+
+    def _report_dispatch(self, item: IngestedPost, sha256: str, *, ok: bool) -> None:
+        """Tell the service how a dispatch went. A failure here is counted as a run error
+        but never masks the dispatch error or stops the remaining posts."""
+        label = f"{item.scope.key} (post {item.post.id})"
+        try:
+            self.service.vision_dispatch(sha256, item.post.id, ok, scope_key=item.scope.key,
+                                         modified=item.post.modified.isoformat())  # fmt: skip
+        except ServiceError as exc:
+            if ok:
+                self.errors.append(f"{label}: vision job dispatched but not recorded: {exc}")
+                log.error("%s: vision job DISPATCHED BUT NOT RECORDED (the next poll may "
+                          "dispatch it again): %s", label, exc)  # fmt: skip
+            else:
+                self.errors.append(f"{label}: failed dispatch not reported: {exc}")
+                log.error("%s: failed dispatch not reported: %s", label, exc)
+
+    def vision_pending(self, seen: Seen | None, item: Any) -> bool:
+        """True for an unchanged image-only post that waits for its transcript while its
+        vision job is in the 12 hour window: no download, no OCR, no dispatch."""
+        if (
+            seen is None
+            or seen[0] != item.post.modified
+            or not seen[1]
+            or seen[2] is not True
+            or not self.settings.vonk_vision_dispatch
+        ):
+            return False
+        sha = seen[1]
+        if self.service.transcript(sha, VISION_VERSION) is not None:
+            return False
+        if self.service.dispatch_allowed(sha):
+            return False
+        log.info("%s (post %s): waiting for the vision transcript", item.scope.key, item.post.id)
+        return True
 
     def process(self, item: IngestedPost) -> None:
         post, scope = item.post, item.scope
@@ -357,6 +397,8 @@ class PollRun:
                 log.warning("ingest: %s", warning)
             for item in result.posts:
                 if self.is_current(seen.get(item.post.id), item):
+                    continue
+                if self.vision_pending(seen.get(item.post.id), item):
                     continue
                 try:
                     self.process(item)

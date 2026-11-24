@@ -19,7 +19,7 @@ from vonk.models import Event, mint_uid
 from vonk.pdf import PdfText
 from vonk.poll import PollOptions, run_poll
 from vonk.sinks.caldav_sink import to_ics
-from vonk.store import LAST_COMPLETED_POLL, LAST_SUCCESSFUL_POLL
+from vonk.store import LAST_COMPLETED_POLL, LAST_NEW_VONK, LAST_SUCCESSFUL_POLL
 
 URL = "https://scoutstervant.be/x.pdf"
 SCOPE = "kabouters:2026-10"
@@ -434,7 +434,8 @@ def allowed(w, sha=SHA) -> bool:
 
 
 def dispatch(w, sha=SHA, post_id=2736, ok=True):
-    body = {"pdf_sha256": sha, "post_id": post_id, "ok": ok}
+    body = {"pdf_sha256": sha, "post_id": post_id, "ok": ok,
+            "modified": "2026-11-02T09:00:00", "scope_key": "jeevees:2026-11"}  # fmt: skip
     resp = w.client.post("/api/vision-dispatch", json=body, headers=w.auth)
     assert resp.status_code == 200
     return resp
@@ -463,6 +464,16 @@ def test_successful_dispatch_blocks_the_pdf_for_12_hours(world):
     assert metric(world, "vonk_vision_pending") == 2
 
 
+def test_successful_dispatch_marks_the_post_seen_as_image_only(world):
+    dispatch(world)
+    assert world.store.seen_posts() == [{"post_id": 2736, "modified": "2026-11-02T09:00:00",
+                                         "pdf_sha256": SHA, "ocr": True}]  # fmt: skip
+    assert world.store.get_meta(LAST_NEW_VONK) == world.clock.now
+    bad = {"pdf_sha256": SHA, "post_id": 1, "ok": True, "modified": "m", "scope_key": "x"}
+    resp = world.client.post("/api/vision-dispatch", json=bad, headers=world.auth)
+    assert resp.status_code == 400
+
+
 def test_failed_dispatch_is_counted_but_never_blocks_a_retry(world):
     dispatch(world, ok=False)
     assert allowed(world) is True
@@ -478,7 +489,18 @@ def test_vision_dispatch_validation(world):
         resp = world.client.post("/api/vision-dispatch", json=payload, headers=world.auth)
         assert resp.status_code == 400
     assert world.store.vision_pending("v1") == []
+    assert world.store.seen_posts() == []
     assert world.client.get("/api/vision-dispatch/x", headers=world.auth).status_code == 400
+
+
+@pytest.mark.parametrize("version", ["a" * 33, "v1_2", "v%201", "v1;x"])
+def test_transcript_routes_reject_odd_vision_versions(world, version):
+    path = f"/api/transcripts/{SHA}/{version}"
+    assert world.client.get(path, headers=world.auth).status_code == 400
+    resp = world.client.put(path, json={"text": "x"}, headers=world.auth)
+    assert resp.status_code == 400
+    assert world.client.get(f"/api/transcripts/{SHA}/2026-11-24.1",
+                            headers=world.auth).status_code == 404  # fmt: skip
 
 
 def test_vision_pending_age_and_transcript_clears_it(world, monkeypatch):
@@ -524,3 +546,46 @@ def test_desired_stores_the_ocr_flag(world):
     resp = world.client.post(f"/api/scopes/{SCOPE}/desired", json=body([ev(3)], ocr="yes"),
                              headers=world.auth)  # fmt: skip
     assert resp.status_code == 400
+
+
+def test_seen_rows_from_before_the_ocr_flag_are_reprocessed_once_without_any_effect(world):
+    assert _poll(world) == 0
+    _approve_all_announced(world)
+    notices = len(world.gotify.messages)
+    changesets = world.store._query("SELECT COUNT(*) AS n FROM changesets")[0]["n"]
+    with world.store._tx() as c:  # a database written before the ocr column existed
+        c.execute("UPDATE seen SET ocr=NULL")
+    calls = []
+
+    def counting_extract(text, kind):
+        calls.append(kind)
+        return _extract(text, kind)
+
+    def poll_counting():
+        def handler(request):
+            if request.url.host == "wp.test":
+                return httpx.Response(200, json=POSTS, headers={"X-WP-TotalPages": "1"})
+            resp = world.client.request(request.method, request.url.raw_path.decode(),
+                                        content=request.content, headers=dict(request.headers))
+            return httpx.Response(resp.status_code, content=resp.content,
+                                  headers={"Content-Type": resp.headers.get("content-type", "")})
+        # fmt: skip
+        return run_poll(Settings.from_env(POLL_ENV), PollOptions(),
+                        transport=httpx.MockTransport(handler), fetch_pdf=_fetch,
+                        extractor=counting_extract, wp_url="https://wp.test/wp-json/wp/v2",
+                        allowed_hosts=frozenset({"wp.test"}))  # fmt: skip
+
+    desired_before = world.store.desired_all()
+    assert poll_counting() == 0
+    assert calls == []  # cache hits: no LLM call
+    assert len(world.gotify.messages) == notices  # empty diff: nothing announced
+    assert world.store._query("SELECT COUNT(*) AS n FROM changesets")[0]["n"] == changesets
+    assert world.store.pending_count() == 0
+    assert all(p["ocr"] is False for p in world.store.seen_posts())
+    reposted = world.store.desired_all()
+    assert [d[:2] for d in reposted] == [d[:2] for d in desired_before]
+
+    world.clock.now += 60
+    assert poll_counting() == 0  # second run: a no-op
+    assert calls == [] and len(world.gotify.messages) == notices
+    assert world.store.desired_all() == reposted  # nothing re-posted (updated_at unchanged)

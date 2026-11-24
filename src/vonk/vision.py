@@ -4,8 +4,10 @@
 An image-only vonk (a poster without a text layer) is never extracted from tesseract
 output. Instead the poll dispatches ``vonk vision`` as a parameterized batch job next to an
 Ollama server with a vision model. That job downloads the PDF, checks its sha256, renders
-every page, transcribes each page twice and stores the transcript in the service only when
-both runs contain the same digits (dates and times are the part a model gets wrong). The
+every page twice (150 and 200 dpi), transcribes each render and stores the transcript in
+the service only when both contain the same digits (dates and times are the part a model
+gets wrong). The dispatch carries ``VISION_VERSION``; a job image with another version
+refuses the run instead of storing a transcript under a key the poll does not ask for. The
 next poll extracts from the stored transcript as from any text layer.
 
 Exit codes of ``vonk vision``: 0 ok, 1 any failure (always reported to the service with
@@ -53,6 +55,11 @@ HTTP_TIMEOUT = 30.0
 
 PDF_URL_ENV = ("NOMAD_META_PDF_URL", "PDF_URL")
 PDF_SHA256_ENV = ("NOMAD_META_PDF_SHA256", "PDF_SHA256")
+VISION_VERSION_ENV = ("NOMAD_META_VISION_VERSION", "VISION_VERSION")
+
+FIRST_DPI = 150
+SECOND_DPI = 200
+"""The second transcription reads a different render, so the two runs are not one guess."""
 
 PageReader = Callable[[bytes], str]
 
@@ -149,16 +156,20 @@ def digits(text: str) -> list[str]:
     return re.findall(r"\d+", text)
 
 
-def transcribe(pages: Sequence[bytes], read_page: PageReader) -> str:
-    """Transcribe every page twice; the digit tokens of both runs must be identical.
+def transcribe(
+    pages: Sequence[bytes], second_pages: Sequence[bytes], read_page: PageReader
+) -> str:
+    """Transcribe every page twice, once per render; the digit tokens must be identical.
 
-    Returns the first run of every page, joined by ``\\f``. A mismatch raises
+    Returns the run on ``pages`` of every page, joined by ``\\f``. A mismatch raises
     ``VisionError``: the model is guessing at the numbers, so nothing may be stored.
     """
+    if len(pages) != len(second_pages):
+        raise VisionError(f"renders differ in page count ({len(pages)} vs {len(second_pages)})")
     texts = []
-    for number, png in enumerate(pages, 1):
+    for number, (png, second_png) in enumerate(zip(pages, second_pages, strict=True), 1):
         first = read_page(png)
-        second = read_page(png)
+        second = read_page(second_png)
         if digits(first) != digits(second):
             raise VisionError(
                 f"page {number}: two runs disagree on the digits "
@@ -189,7 +200,9 @@ def nomad_dispatch(
         sock = Path(settings.nomad_secrets_dir) / "api.sock"
         transport = httpx.HTTPTransport(uds=str(sock))
     path = f"/v1/job/{settings.vonk_vision_job}/dispatch"
-    body = {"Meta": {"PDF_URL": pdf_url, "PDF_SHA256": pdf_sha256}}
+    body = {
+        "Meta": {"PDF_URL": pdf_url, "PDF_SHA256": pdf_sha256, "VISION_VERSION": VISION_VERSION}
+    }
     try:
         with httpx.Client(transport=transport, timeout=NOMAD_TIMEOUT) as http:
             resp = http.post(
@@ -199,13 +212,16 @@ def nomad_dispatch(
                 json=body,
             )
             resp.raise_for_status()
-            return str(resp.json().get("DispatchedJobID", ""))
+            job_id = resp.json().get("DispatchedJobID")
     except httpx.HTTPStatusError as exc:
         raise VisionError(f"Nomad dispatch: HTTP {exc.response.status_code}") from exc
     except httpx.HTTPError as exc:
         raise VisionError(f"Nomad dispatch failed: {type(exc).__name__}") from exc
     except (ValueError, AttributeError) as exc:
         raise VisionError(f"Nomad dispatch: malformed body: {type(exc).__name__}") from exc
+    if not isinstance(job_id, str) or not job_id:
+        raise VisionError("Nomad dispatch: no DispatchedJobID in the answer")
+    return job_id
 
 
 # --- vonk vision -------------------------------------------------------------------------
@@ -230,7 +246,7 @@ class VisionRun:
         ollama_http: httpx.Client,
         *,
         allowed_hosts: frozenset[str] = ALLOWED_HOSTS,
-        render: Callable[[bytes], list[bytes]] = render_pages,
+        render: Callable[..., list[bytes]] = render_pages,
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
         now: Callable[[], datetime] = lambda: datetime.now().astimezone(),
@@ -252,20 +268,30 @@ class VisionRun:
         actual = sha256_hex(data)
         if actual != pdf_sha256:
             raise VisionError(f"PDF sha256 {actual} differs from the dispatched {pdf_sha256}")
-        pages = self.render(data)
+        pages = self.render(data, dpi=FIRST_DPI)
+        second_pages = self.render(data, dpi=SECOND_DPI)
         url, model = self.settings.vonk_vision_url, self.settings.vonk_vision_model
         assert url is not None
         wait_for_model(self.ollama_http, url, model,
                        digest=self.settings.vonk_vision_model_digest, sleep=self.sleep,
                        clock=self.monotonic)  # fmt: skip
         log.info("transcribing %d page(s) twice with %s", len(pages), model)
-        return transcribe(pages, lambda png: transcribe_page(self.ollama_http, url, model, png))
+        def read(png: bytes) -> str:
+            return transcribe_page(self.ollama_http, url, model, png)
 
-    def run(self, pdf_url: str, pdf_sha256: str) -> int:
+        return transcribe(pages, second_pages, read)
+
+    def run(self, pdf_url: str, pdf_sha256: str, vision_version: str | None = None) -> int:
+        """``vision_version`` is the dispatcher's VISION_VERSION (None: not sent)."""
         from vonk.poll import ServiceError
 
         started = self.now()
         try:
+            if vision_version is not None and vision_version != VISION_VERSION:
+                raise VisionError(
+                    f"dispatched for vision version {vision_version}, this image has "
+                    f"{VISION_VERSION}; update the job image or the poll"
+                )
             if self.service.transcript(pdf_sha256, VISION_VERSION) is not None:
                 log.info("transcript of %s already stored; nothing to do", pdf_sha256)
             else:
@@ -308,6 +334,7 @@ def run_vision(
 
     env = os.environ if env is None else env
     pdf_url, pdf_sha256 = _meta(env, PDF_URL_ENV), _meta(env, PDF_SHA256_ENV)
+    vision_version = _meta(env, VISION_VERSION_ENV)
     problems = settings.missing_secrets("vision") + list(settings.errors)
     if pdf_url is None:
         problems.append("PDF_URL")
@@ -330,7 +357,7 @@ def run_vision(
         service = ServiceClient(service_http, settings.vonk_api_url, settings.vonk_api_token)
         return VisionRun(
             settings, service, pdf_http, ollama_http, allowed_hosts=allowed_hosts, **kwargs
-        ).run(pdf_url, pdf_sha256.lower())
+        ).run(pdf_url, pdf_sha256.lower(), vision_version)
 
 
 def cmd_vision(args: argparse.Namespace) -> int:

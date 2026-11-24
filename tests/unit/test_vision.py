@@ -167,23 +167,26 @@ def test_digits_in_order():
     ]  # fmt: skip
 
 
-def test_transcribe_reads_every_page_twice_and_keeps_the_first_run():
-    runs = {b"p1": ["Zondag 8 nov 10u30 Kampmenu", "zondag 8 nov 10u30 kampmenu"],
-            b"p2": ["Zat 28 nov Minimarkt", "Zat 28 nov Minimarkt"]}  # fmt: skip
+def test_transcribe_reads_both_renders_and_keeps_the_first():
+    runs = {b"p1@150": "Zondag 8 nov 10u30 Kampmenu", b"p1@200": "zondag 8 nov 10u30 kampmenu",
+            b"p2@150": "Zat 28 nov Minimarkt", b"p2@200": "Zat 28 nov Minimarkt"}  # fmt: skip
     calls = []
 
     def read(png):
         calls.append(png)
-        return runs[png][calls.count(png) - 1]
+        return runs[png]
 
-    assert transcribe([b"p1", b"p2"], read) == "Zondag 8 nov 10u30 Kampmenu\fZat 28 nov Minimarkt"
-    assert calls == [b"p1", b"p1", b"p2", b"p2"]
+    text = transcribe([b"p1@150", b"p2@150"], [b"p1@200", b"p2@200"], read)
+    assert text == "Zondag 8 nov 10u30 Kampmenu\fZat 28 nov Minimarkt"
+    assert calls == [b"p1@150", b"p1@200", b"p2@150", b"p2@200"]
 
 
 def test_transcribe_refuses_runs_that_disagree_on_digits():
     answers = iter(["Zondag 8 nov 10u30", "Zondag 9 nov 10u30"])
     with pytest.raises(VisionError, match=r"page 1: two runs disagree"):
-        transcribe([b"p1"], lambda png: next(answers))
+        transcribe([b"p1"], [b"p1-hi"], lambda png: next(answers))
+    with pytest.raises(VisionError, match="page count"):
+        transcribe([b"p1"], [b"p1", b"p2"], lambda png: "x")
 
 
 # --- Nomad dispatch ----------------------------------------------------------------------
@@ -211,7 +214,16 @@ def test_nomad_dispatch_posts_meta_with_the_workload_token():
     assert request.url.path == "/v1/job/my-vision-job/dispatch"
     assert request.url.params["namespace"] == "my-namespace"
     assert request.headers["X-Nomad-Token"] == "nomad-wi-token"
-    assert json.loads(request.content) == {"Meta": {"PDF_URL": PDF_URL, "PDF_SHA256": SHA}}
+    assert json.loads(request.content) == {
+        "Meta": {"PDF_URL": PDF_URL, "PDF_SHA256": SHA, "VISION_VERSION": VISION_VERSION}
+    }
+
+
+@pytest.mark.parametrize("answer", [{}, {"DispatchedJobID": ""}, {"DispatchedJobID": None}])
+def test_nomad_dispatch_without_a_job_id_is_an_error(answer):
+    transport = httpx.MockTransport(lambda r: httpx.Response(200, json=answer))
+    with pytest.raises(VisionError, match="no DispatchedJobID"):
+        nomad_dispatch(Settings.from_env(NOMAD_ENV), PDF_URL, SHA, transport=transport)
 
 
 def test_nomad_dispatch_uses_the_task_api_socket(monkeypatch):
@@ -284,13 +296,19 @@ class FakeWorld:
         return httpx.Response(404) if text is None else httpx.Response(200, json={"text": text})
 
 
-def run(world: FakeWorld, env=ENV, *, rendered=(b"page-1",)) -> int:
+def run(world: FakeWorld, env=ENV, *, renders=None) -> int:
     clock = Clock()
+    renders = [] if renders is None else renders
+
+    def render(data, *, dpi):
+        renders.append((data, dpi))
+        return [f"page-1@{dpi}".encode()]
+
     return run_vision(
         Settings.from_env(env),
         env,
         transport=httpx.MockTransport(world.handler),
-        render=lambda data: list(rendered),
+        render=render,
         sleep=clock.sleep,
         monotonic=clock,
     )
@@ -302,8 +320,29 @@ def test_vision_run_stores_the_transcript_and_reports_as_vision():
     assert world.stored == {(SHA, VISION_VERSION): TRANSCRIPT}
     (report,) = world.reports
     assert report["source"] == "vision" and report["ok"] is True and report["errors"] == []
-    chats = [r for r in world.requests if r.url.path == "/api/chat"]
-    assert len(chats) == 2  # one page, read twice
+    chats = [json.loads(r.content) for r in world.requests if r.url.path == "/api/chat"]
+    images = [base64.b64decode(c["messages"][0]["images"][0]) for c in chats]
+    assert images == [b"page-1@150", b"page-1@200"]  # one page, two renders
+
+
+def test_vision_run_renders_the_pdf_at_150_and_200_dpi():
+    renders = []
+    assert run(FakeWorld(), renders=renders) == 0
+    assert renders == [(PDF, 150), (PDF, 200)]
+
+
+def test_vision_run_refuses_another_vision_version():
+    world = FakeWorld()
+    assert run(world, {**ENV, "NOMAD_META_VISION_VERSION": "1999-01-01.1"}) == 1
+    assert world.stored == {}
+    assert set(world.hosts()) == {"vonk.test"}
+    (report,) = world.reports
+    assert report["source"] == "vision" and report["ok"] is False
+    assert "vision version 1999-01-01.1" in report["errors"][0]
+
+    world = FakeWorld()
+    assert run(world, {**ENV, "VISION_VERSION": VISION_VERSION}) == 0
+    assert (SHA, VISION_VERSION) in world.stored
 
 
 def test_vision_run_accepts_plain_meta_names():

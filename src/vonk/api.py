@@ -16,9 +16,10 @@ Wire shapes (matched by ``vonk.poll.ServiceClient``):
 - ``PUT  /api/transcripts/{sha}/{vision_version}`` ``{text}`` -> ``{}`` (from ``vonk vision``)
 - ``GET  /api/vision-dispatch/{sha}`` -> ``{"dispatch": bool}``: false while the last
   successful vision dispatch of that PDF is less than 12 hours old
-- ``POST /api/vision-dispatch`` ``{pdf_sha256, post_id, ok}`` -> ``{}``: the outcome of a
-  dispatch; ``ok`` records it (starting the 12 hour window), a failure only counts an error
-  so the next poll tries again
+- ``POST /api/vision-dispatch`` ``{pdf_sha256, post_id, ok, modified, scope_key}`` -> ``{}``:
+  the outcome of a dispatch; ``ok`` records it (starting the 12 hour window) and marks the
+  post seen as image-only, so the poll skips it without a download until the transcript is
+  there; a failure only counts an error so the next poll tries again
 - ``POST /api/poll-report`` ``{source, started, finished, ok, errors, warnings}`` -> ``{}``;
   ``source`` is ``poll`` (default) or ``vision``, each with its own heartbeat gauges
 
@@ -96,6 +97,7 @@ VISION_DISPATCH_INTERVAL = 12 * 3600
 MAX_TRANSCRIPT_CHARS = 200_000
 
 _SHA256 = re.compile(r"[0-9a-f]{64}")
+_VISION_VERSION = re.compile(r"[0-9A-Za-z.-]{1,32}")
 
 SINK_ERRORS: tuple[type[Exception], ...] = (httpx.HTTPError, RuntimeError)
 
@@ -309,7 +311,19 @@ class Service:
         if not ok:
             self.metrics.vision_errors.inc()
             return
+        try:
+            modified = str(body["modified"])
+            scope_key = str(body["scope_key"])
+            Scope.parse(scope_key)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise BadRequest(f"invalid vision-dispatch body: {exc}") from exc
+        new_post = not self.store.is_seen(post_id)
         self.store.record_dispatch(sha, post_id)
+        self.store.mark_seen(post_id, modified, sha, scope_key, ocr=True)
+        if new_post:
+            now = self.clock()
+            self.store.set_meta(LAST_NEW_VONK, now)
+            self.metrics.last_new_vonk.set(now)
         self.metrics.vision_dispatches.inc()
         self.metrics.refresh(self.store)
 
@@ -597,6 +611,8 @@ def routes(service: Service) -> list[Route]:
             return denied
         sha = request.path_params["sha"]
         version = request.path_params["vision_version"]
+        if not _VISION_VERSION.fullmatch(version):
+            return JSONResponse({"error": "invalid vision version"}, status_code=400)
         if request.method == "PUT":
             try:
                 body = await _json(request)

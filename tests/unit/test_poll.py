@@ -42,11 +42,13 @@ class FakeWorld:
     """Fake service + WordPress behind one MockTransport, recording every request."""
 
     def __init__(self, *, seen=(), cache=None, service_status=None, service_down=False,
-                 posts=POSTS, transcripts=None, dispatch_allowed=True):  # fmt: skip
+                 posts=POSTS, transcripts=None, dispatch_allowed=True,
+                 dispatch_record_status=200):  # fmt: skip
         self.seen = list(seen)
         self.cache = cache or {}
         self.transcripts = transcripts or {}
         self.dispatch_allowed = dispatch_allowed
+        self.dispatch_record_status = dispatch_record_status
         self.dispatch_checks: list[str] = []
         self.dispatch_requests: list[dict] = []
         self.service_status = service_status
@@ -87,7 +89,7 @@ class FakeWorld:
             return httpx.Response(200, json={"dispatch": self.dispatch_allowed})
         if path == "/api/vision-dispatch":
             self.dispatch_requests.append(json.loads(request.content))
-            return httpx.Response(200, json={})
+            return httpx.Response(self.dispatch_record_status, json={})
         if path.startswith("/api/scopes/") and path.endswith("/desired"):
             self.desired[path.split("/")[3]] = json.loads(request.content)
             return httpx.Response(200, json={"changeset_id": "cs-1", "ops": 5})
@@ -480,8 +482,9 @@ def test_image_only_pdf_without_transcript_dispatches_the_vision_job():
     assert world.dispatch_checks == [IMAGE["sha256"]]
     # recorded only after the dispatch succeeded
     assert world.dispatch_requests == [
-        {"pdf_sha256": IMAGE["sha256"], "post_id": 2647, "ok": True}
-    ]
+        {"pdf_sha256": IMAGE["sha256"], "post_id": 2647, "ok": True,
+         "modified": "2026-09-22T19:30:51+02:00", "scope_key": "jeevees:2026-10"}
+    ]  # fmt: skip
     assert "jeevees:2026-10" not in world.desired  # not posted, so not seen either
     assert "jeevees-2026-10" not in extractor.calls  # OCR text is never extracted from
     assert set(world.desired) == {"groep:2026-2027", "kabouters:2026-10"}
@@ -571,6 +574,14 @@ def test_seen_image_post_is_current_only_with_transcript_and_vision_cache():
     world = FakeWorld(seen=_seen_image(True), cache=full)  # no transcript
     assert run(world, fetch=image_fetch) == 0
     assert world.desired == {}
+    assert any("jeevees:2026-10 (post 2647): image-only PDF skipped" in w
+               for w in world.reports[0]["warnings"])  # fmt: skip
+
+    world = FakeWorld(seen=_seen_image(True), cache=full)  # no transcript, dispatch enabled
+    dispatcher = Dispatcher()
+    assert run(world, env=VISION_ENV, fetch=image_fetch, dispatch=dispatcher) == 0
+    assert world.desired == {}
+    assert dispatcher.calls == [(IMAGE["url"], sha)]
 
 
 def test_seen_row_without_ocr_flag_is_reprocessed_once_from_the_cache():
@@ -580,6 +591,16 @@ def test_seen_row_without_ocr_flag_is_reprocessed_once_from_the_cache():
     assert run(world, extractor=extractor) == 0
     assert len(world.desired) == 3
     assert extractor.calls == []  # cache hits: no LLM call
+    assert all(body["ocr"] is False for body in world.desired.values())
+
+    # the service stores what was posted; the next run is a no-op
+    seen = [{"post_id": b["post"]["id"], "modified": b["post"]["modified"],
+             "pdf_sha256": b["pdf_sha256"], "ocr": b["ocr"]} for b in world.desired.values()]
+    world = FakeWorld(seen=seen, cache=_cache_all(PROMPT_VERSION))  # fmt: skip
+    assert run(world, extractor=extractor) == 0
+    assert world.desired == {} and extractor.calls == []
+    # (no-changeset / no-announcement for this case: see test_api.py
+    # test_seen_rows_from_before_the_ocr_flag_are_reprocessed_once_without_any_effect)
 
 
 def test_ocr_guard_is_case_and_space_insensitive():
@@ -620,3 +641,67 @@ def test_pdf_without_any_ocr_text_is_still_skipped_without_dispatch():
     assert dispatcher.calls == [] and "jeevees:2026-10" not in world.desired
     (report,) = world.reports
     assert any("PDF has no text layer and OCR found no text" in w for w in report["warnings"])
+
+
+def test_failed_dispatch_report_does_not_mask_the_error_or_stop_other_posts():
+    world = FakeWorld(dispatch_record_status=500)
+    assert run(world, env=VISION_ENV, fetch=image_fetch, dispatch=Dispatcher(fail=True)) == 1
+    assert set(world.desired) == {"groep:2026-2027", "kabouters:2026-10"}
+    errors = world.reports[0]["errors"]
+    assert "jeevees:2026-10 (post 2647): Nomad dispatch: HTTP 403" in errors
+    assert any("failed dispatch not reported" in e for e in errors)
+
+
+def test_dispatch_that_cannot_be_recorded_fails_loudly_but_keeps_going(caplog):
+    world = FakeWorld(dispatch_record_status=500)
+    dispatcher = Dispatcher()
+    assert run(world, env=VISION_ENV, fetch=image_fetch, dispatch=dispatcher) == 1
+    assert dispatcher.calls == [(IMAGE["url"], IMAGE["sha256"])]
+    assert set(world.desired) == {"groep:2026-2027", "kabouters:2026-10"}
+    (error,) = world.reports[0]["errors"]
+    assert error.startswith("jeevees:2026-10 (post 2647): vision job dispatched but not recorded")
+    assert "DISPATCHED BUT NOT RECORDED" in caplog.text
+
+
+def test_pending_image_post_is_not_downloaded_again_within_the_dispatch_window():
+    fetched = []
+
+    def fetch(url):
+        fetched.append(url)
+        return image_fetch(url)
+
+    seen = _seen_image(True)
+    world = FakeWorld(seen=seen, cache=_cache_all(PROMPT_VERSION), dispatch_allowed=False)
+    dispatcher = Dispatcher()
+    assert run(world, env=VISION_ENV, fetch=fetch, dispatch=dispatcher) == 0
+    assert IMAGE["url"] not in fetched and dispatcher.calls == []
+    assert world.dispatch_checks == [IMAGE["sha256"]]
+    assert world.desired == {} and world.reports[0]["warnings"] == []
+
+    # window over: downloaded and dispatched again
+    world = FakeWorld(seen=seen, cache=_cache_all(PROMPT_VERSION))
+    assert run(world, env=VISION_ENV, fetch=fetch, dispatch=dispatcher) == 0
+    assert fetched.count(IMAGE["url"]) == 1 and len(dispatcher.calls) == 1
+
+
+def test_migrated_image_post_never_uses_its_ocr_era_cache():
+    sha = IMAGE["sha256"]
+    seen = [{k: v for k, v in p.items() if k != "ocr"} for p in _seen_all()]  # ocr = None
+    old = [{**recorded_spans("jeevees-2026-10")[0], "title_span": "OCR-era guess"}]
+    cache = {**_cache_all(PROMPT_VERSION), (sha, PROMPT_VERSION): old}
+
+    world = FakeWorld(seen=seen, cache=cache)
+    extractor, dispatcher = FakeExtractor(), Dispatcher()
+    assert run(world, env=VISION_ENV, fetch=image_fetch, extractor=extractor,
+               dispatch=dispatcher) == 0  # fmt: skip
+    assert dispatcher.calls == [(IMAGE["url"], sha)]
+    assert "jeevees:2026-10" not in world.desired and "jeevees-2026-10" not in extractor.calls
+
+    world = FakeWorld(seen=seen, cache=cache, transcripts={(sha, VISION_VERSION): IMAGE_TEXT})
+    assert run(world, env=VISION_ENV, fetch=image_fetch, extractor=extractor,
+               dispatch=dispatcher) == 0  # fmt: skip
+    body = world.desired["jeevees:2026-10"]
+    assert body["prompt_version"] == VISION_PROMPT_VERSION
+    assert body["spans"] == recorded_spans("jeevees-2026-10")  # not the OCR-era row
+    assert "jeevees-2026-10" in extractor.calls
+    assert not any(r.url.path == f"/api/cache/{sha}/{PROMPT_VERSION}" for r in world.requests)
