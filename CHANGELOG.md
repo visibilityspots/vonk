@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.3.2] - 2026-11-24
+### :bug: Bug Fixes
+- [`eb85583`](https://github.com/visibilityspots/vonk/commit/eb85583e7f805a0b195c2195d3835403a3e20c21) - **vision**: skip edited waiting posts, count every waiting poster *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+### :wrench: Chores
+- [`7d3b72f`](https://github.com/visibilityspots/vonk/commit/7d3b72f8c301f6f88f1726e8e409d446ddadf3de) - **deps-dev**: bump ruff from 0.17.5 to 0.17.6 *(PR [#23](https://github.com/visibilityspots/vonk/pull/23) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`a5d1efe`](https://github.com/visibilityspots/vonk/commit/a5d1efefbce597e341d98d50f7d2b4d29aed1a56) - **deps**: bump anthropic from 2.8.0 to 2.12.0 *(PR [#24](https://github.com/visibilityspots/vonk/pull/24) by [@dependabot[bot]](https://github.com/apps/dependabot))*
+- [`19afefb`](https://github.com/visibilityspots/vonk/commit/19afefb56ae9d89e1f0afb1d8ca09e7a14a8ce8f) - **release**: 0.3.2 *(commit by [@visibilityspots](https://github.com/visibilityspots))*
+
+
 ## [v0.3.1] - 2026-11-24
 ### :sparkles: New Features
 - [`0d0def0`](https://github.com/visibilityspots/vonk/commit/0d0def0725a33ad48ebb57154cb0a3e083acd413) - **vision**: Claude fallback for image-only posters, gray second read *(commit by [@visibilityspots](https://github.com/visibilityspots))*
@@ -144,3 +154,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.2.12]: https://github.com/visibilityspots/vonk/compare/v0.2.11...v0.2.12
 [v0.3.0]: https://github.com/visibilityspots/vonk/compare/v0.2.12...v0.3.0
 [v0.3.1]: https://github.com/visibilityspots/vonk/compare/v0.3.0...v0.3.1
+[v0.3.2]: https://github.com/visibilityspots/vonk/compare/v0.3.1...v0.3.2
