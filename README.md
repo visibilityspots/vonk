@@ -46,7 +46,7 @@ is 1.
 |---|---|---|
 | `vonk` | service, `count = 1` | Approve page, bearer-authenticated internal API, `/health`, `/metrics`. Sole owner of SQLite (identity, state, extraction cache, tokens) and of every CalDAV write. |
 | `vonk-poll` | periodic batch, every 6 hours | Stateless. Extracts and sends results to the service API; always reports back via `/api/poll-report`; exits non-zero on any failure. |
-| vision job | parameterized batch, dispatched by the poll | `vonk vision` on a GPU node with an Ollama sidecar: transcribes one image-only vonk and stores the transcript in the service. Optional. |
+| vision job | parameterized batch, dispatched by the poll | `vonk vision` on a GPU node with an Ollama sidecar: transcribes one image-only vonk and stores the transcript in the service. Optional: without it, or when it fails, the poll reads the poster with Claude. |
 
 The service is reachable on the internal `https` entrypoint only.
 
@@ -78,12 +78,15 @@ as missing.
 | `VONK_VISION_URL` | (in the job) | vision | Ollama base URL; no default |
 | `VONK_VISION_MODEL` | (in the job) | vision | vision model (default `qwen3-vl:4b`) |
 | `VONK_VISION_MODEL_DIGEST` | (in the job) | vision | optional: the model digest Ollama reports must match |
+| `VONK_VISION_FALLBACK_AFTER` | (in the job) | poll | hours after a dispatch without transcript before the poll reads the poster with Claude (default 12) |
 | `PDF_URL`, `PDF_SHA256` | (dispatch meta) | vision | the PDF to transcribe; `NOMAD_META_PDF_URL` / `NOMAD_META_PDF_SHA256` are read first |
 
 ### Image-only vonks
 
 Some vonks are posters without a text layer. `tesseract` loses day numbers in calendar
 icons, so OCR text is never extracted from; it only serves as a weak check afterwards.
+Posters are read local-first: a small vision model on a GPU node, with Claude as the
+fallback when that model fails or is not configured.
 
 1. The poll asks the service for a stored transcript of the PDF (`GET
    /api/transcripts/<sha256>/<vision version>`). Without one it dispatches the vision job
@@ -96,22 +99,33 @@ icons, so OCR text is never extracted from; it only serves as a weak check after
    dispatch counts in `vonk_vision_errors_total` and is retried by the next poll. With
    dispatch enabled this also holds for a PDF on which OCR finds no text at all.
 2. `vonk vision` (a parameterized Nomad job on a GPU node with an Ollama sidecar) downloads
-   the PDF from the same allowlisted hosts, checks its sha256, renders every page at 150 and
-   at 200 dpi, waits until Ollama lists the model, and transcribes both renders of every
-   page. Only when both contain exactly the same digits is the transcript stored. A job
-   image whose `VISION_VERSION` differs from the dispatched one refuses the run. It always
-   reports back with `source = "vision"`, which has its own heartbeat gauges.
-3. The next poll extracts from the transcript with Claude like from a text layer and caches
-   the spans under the prompt version plus `-vision1`. The ChangeSet carries the warning
-   "vision transcript: check dates against the poster", plus a warning per title that does
-   not occur in the OCR text.
+   the PDF from the same allowlisted hosts, checks its sha256, renders every page at 150 dpi
+   in colour and in greyscale (a larger render can run a small GPU out of memory), waits
+   until Ollama lists the model, and transcribes both renders of every page. Only when both
+   contain exactly the same digits is the transcript stored (engine `ollama`). A job image
+   whose `VISION_VERSION` differs from the dispatched one refuses the run. Every failure
+   (download, model, empty answer, digit mismatch, ...) is recorded for that PDF in the
+   service (`POST /api/vision-failures`). It always reports back with `source = "vision"`,
+   which has its own heartbeat gauges.
+3. Claude fallback: when the vision job failed for the PDF after its latest dispatch, when
+   that dispatch is older than `VONK_VISION_FALLBACK_AFTER` hours without a transcript, or
+   when dispatch is not configured at all, the poll reads the poster itself with Claude:
+   the same two renders, the same prompt and the same digit rule. A transcript that passes
+   is stored with engine `claude` and extracted in the same run; a failure stores nothing,
+   is recorded, becomes a warning, and the post stays pending.
+   `vonk_vision_fallbacks_total{result="ok"|"error"}` counts these attempts.
+4. A poll extracts from the transcript with Claude like from a text layer and caches the
+   spans under the prompt version plus `-vision1`. The ChangeSet carries the warning
+   "vision transcript (<engine>): check dates against the poster", plus a warning per
+   title that does not occur in the OCR text.
 
 A failure anywhere on this path never falls back to the OCR text. Metrics:
 `vonk_vision_pending` and `vonk_vision_oldest_pending_age_seconds` (dispatched PDFs without
 a transcript), `vonk_vision_dispatches_total`, `vonk_vision_errors_total` (failed
 dispatches and failed vision runs) and
 `vonk_last_{completed,successful}_vision_timestamp`. The model has to be pulled into the
-Ollama model store beforehand; pin it with `VONK_VISION_MODEL_DIGEST`.
+Ollama model store beforehand; pin it with `VONK_VISION_MODEL_DIGEST`. Without the vision
+job (no `VONK_VISION_DISPATCH`) every image-only vonk is read by the Claude fallback.
 
 Seen posts carry an `ocr` flag (image-only PDF). Rows from before the flag existed are
 processed once more (a cache hit for text PDFs, so no LLM call and no new ChangeSet). Every

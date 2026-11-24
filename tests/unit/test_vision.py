@@ -145,15 +145,21 @@ def test_transcribe_page_sends_the_test_request():
 
 def test_prompt_is_the_tested_wording():
     assert PROMPT.startswith("This image is a monthly activity calendar (a 'vonk') of one age")
-    assert PROMPT.endswith("do not add anything that is not on the poster.")
+    assert PROMPT.endswith(
+        "do not add anything that is not on the poster. Output only the transcription lines: "
+        "no title, no headings, no notes or comments."
+    )
 
 
 @pytest.mark.parametrize(
     ("response", "match"),
     [
-        (httpx.Response(500), "HTTP 500"),
+        (httpx.Response(500, json={"error": "llama runner process has terminated"}),
+         r"HTTP 500 \(server error.*: llama runner process has terminated"),
+        (httpx.Response(503, text="<html>busy</html>"), r"HTTP 503 \(server error[^:]*$"),
         (httpx.Response(200, json={"error": "x"}), "malformed"),
-        (httpx.Response(200, json={"message": {"content": "  "}}), "empty transcript"),
+        (httpx.Response(200, json={"message": {"content": "  "}, "done_reason": "stop"}),
+         r"the model returned empty content \(done_reason='stop'\)"),
     ],
 )
 def test_transcribe_page_errors(response, match):
@@ -168,17 +174,17 @@ def test_digits_in_order():
 
 
 def test_transcribe_reads_both_renders_and_keeps_the_first():
-    runs = {b"p1@150": "Zondag 8 nov 10u30 Kampmenu", b"p1@200": "zondag 8 nov 10u30 kampmenu",
-            b"p2@150": "Zat 28 nov Minimarkt", b"p2@200": "Zat 28 nov Minimarkt"}  # fmt: skip
+    runs = {b"p1": "Zondag 8 nov 10u30 Kampmenu", b"p1-gray": "zondag 8 nov 10u30 kampmenu",
+            b"p2": "Zat 28 nov Minimarkt", b"p2-gray": "Zat 28 nov Minimarkt"}  # fmt: skip
     calls = []
 
     def read(png):
         calls.append(png)
         return runs[png]
 
-    text = transcribe([b"p1@150", b"p2@150"], [b"p1@200", b"p2@200"], read)
+    text = transcribe([b"p1", b"p2"], [b"p1-gray", b"p2-gray"], read)
     assert text == "Zondag 8 nov 10u30 Kampmenu\fZat 28 nov Minimarkt"
-    assert calls == [b"p1@150", b"p1@200", b"p2@150", b"p2@200"]
+    assert calls == [b"p1", b"p1-gray", b"p2", b"p2-gray"]
 
 
 def test_transcribe_refuses_runs_that_disagree_on_digits():
@@ -269,6 +275,8 @@ class FakeWorld:
         self.model_listed = model_listed
         self.requests: list[httpx.Request] = []
         self.reports: list[dict] = []
+        self.engines: dict[tuple[str, str], str] = {}
+        self.failures: list[dict] = []
 
     def hosts(self) -> list[str]:
         return [r.url.host for r in self.requests]
@@ -288,9 +296,14 @@ class FakeWorld:
         if path == "/api/poll-report":
             self.reports.append(json.loads(request.content))
             return httpx.Response(200, json={})
+        if path == "/api/vision-failures":
+            self.failures.append(json.loads(request.content))
+            return httpx.Response(200, json={})
         _, _, _, sha, version = path.split("/")
         if request.method == "PUT":
-            self.stored[(sha, version)] = json.loads(request.content)["text"]
+            body = json.loads(request.content)
+            self.stored[(sha, version)] = body["text"]
+            self.engines[(sha, version)] = body["engine"]
             return httpx.Response(200, json={})
         text = self.stored.get((sha, version))
         return httpx.Response(404) if text is None else httpx.Response(200, json={"text": text})
@@ -300,9 +313,9 @@ def run(world: FakeWorld, env=ENV, *, renders=None) -> int:
     clock = Clock()
     renders = [] if renders is None else renders
 
-    def render(data, *, dpi):
-        renders.append((data, dpi))
-        return [f"page-1@{dpi}".encode()]
+    def render(data, *, dpi, gray=False):
+        renders.append((data, dpi, gray))
+        return [f"page-1@{dpi}{'-gray' if gray else ''}".encode()]
 
     return run_vision(
         Settings.from_env(env),
@@ -322,13 +335,15 @@ def test_vision_run_stores_the_transcript_and_reports_as_vision():
     assert report["source"] == "vision" and report["ok"] is True and report["errors"] == []
     chats = [json.loads(r.content) for r in world.requests if r.url.path == "/api/chat"]
     images = [base64.b64decode(c["messages"][0]["images"][0]) for c in chats]
-    assert images == [b"page-1@150", b"page-1@200"]  # one page, two renders
+    assert images == [b"page-1@150", b"page-1@150-gray"]  # one page, colour and grey
+    assert world.engines == {(SHA, VISION_VERSION): "ollama"}
+    assert world.failures == []
 
 
-def test_vision_run_renders_the_pdf_at_150_and_200_dpi():
+def test_vision_run_renders_colour_and_gray_at_150_dpi():
     renders = []
     assert run(FakeWorld(), renders=renders) == 0
-    assert renders == [(PDF, 150), (PDF, 200)]
+    assert renders == [(PDF, 150, False), (PDF, 150, True)]
 
 
 def test_vision_run_refuses_another_vision_version():
@@ -410,3 +425,101 @@ def test_cli_registers_vision(monkeypatch):
     monkeypatch.delenv("PDF_URL", raising=False)
     monkeypatch.delenv("PDF_SHA256", raising=False)
     assert cli.main(["vision"]) == 2
+
+
+@pytest.mark.parametrize(
+    ("world", "env", "reason"),
+    [
+        (FakeWorld(pdf=b"%PDF-1.4\nother"), ENV, "differs from the dispatched"),
+        (FakeWorld(answers=["8 nov", "9 nov"]), ENV, "two runs disagree"),
+        (FakeWorld(model_listed=False), ENV, "not available"),
+        (FakeWorld(answers=["  ", "x"]), ENV, "empty content"),
+        (FakeWorld(), {**ENV, "NOMAD_META_VISION_VERSION": "1999-01-01.1"}, "vision version"),
+    ],
+    ids=["sha", "digits", "model", "empty", "version"],
+)
+def test_vision_run_records_every_failure_for_the_pdf(world, env, reason):
+    assert run(world, env) == 1
+    (failure,) = world.failures
+    assert failure["pdf_sha256"] == SHA and failure["engine"] == "ollama"
+    assert reason in failure["reason"]
+    assert world.reports[0]["ok"] is False
+
+
+def test_vision_failure_that_cannot_be_recorded_still_reports(caplog):
+    world = FakeWorld(answers=["8 nov", "9 nov"])
+    original = world.handler
+
+    def handler(request):
+        if request.url.path == "/api/vision-failures":
+            world.requests.append(request)
+            return httpx.Response(500)
+        return original(request)
+
+    world.handler = handler
+    assert run(world) == 1
+    assert world.reports[0]["ok"] is False
+    assert "vision failure not recorded" in caplog.text
+
+
+# --- Claude page reader --------------------------------------------------------------------
+
+
+class Block:
+    def __init__(self, text, type="text"):
+        self.text, self.type = text, type
+
+
+class Response:
+    def __init__(self, *texts, stop="end_turn"):
+        self.content = [Block(t) for t in texts]
+        self.stop_reason = stop
+
+
+class FakeClaude:
+    """Records ``beta.messages.create`` calls; answers from a queue (an exception is raised)."""
+
+    def __init__(self, *answers):
+        self.answers = list(answers)
+        self.calls: list[dict] = []
+        self.beta = self
+        self.messages = self
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        answer = self.answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+
+def test_claude_read_page_sends_the_image_with_the_same_prompt_and_parameters():
+    from vonk.extract import FALLBACK_BETA, MODEL
+    from vonk.vision import claude_read_page
+
+    client = FakeClaude(Response("  " + TRANSCRIPT + "\n"))
+    assert claude_read_page(client, b"png-bytes") == TRANSCRIPT
+    (call,) = client.calls
+    assert call["model"] == MODEL
+    assert call["betas"] == [FALLBACK_BETA] and call["fallbacks"] == "default"
+    (message,) = call["messages"]
+    image, text = message["content"]
+    assert image == {"type": "image", "source": {"type": "base64", "media_type": "image/png",
+                                                 "data": base64.b64encode(b"png-bytes").decode()}}
+    assert text == {"type": "text", "text": PROMPT}  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    ("answer", "match"),
+    [
+        (Response("partial", stop="refusal"), "stop_reason='refusal'"),
+        (Response("partial", stop="max_tokens"), "stop_reason='max_tokens'"),
+        (Response(" "), "no transcript"),
+        (RuntimeError("overloaded"), "Claude API call failed: RuntimeError: overloaded"),
+    ],
+)
+def test_claude_read_page_errors(answer, match):
+    from vonk.vision import claude_read_page
+
+    with pytest.raises(VisionError, match=match):
+        claude_read_page(FakeClaude(answer), b"png")

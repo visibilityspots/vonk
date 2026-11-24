@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import httpx
@@ -39,10 +39,12 @@ class PdfError(RuntimeError):
 class EmptyPdfError(PdfError):
     """The PDF has no text layer and OCR found no text either."""
 
-    def __init__(self, message: str, sha256: str | None = None) -> None:
+    def __init__(self, message: str, sha256: str | None = None, data: bytes = b"") -> None:
         super().__init__(message)
         self.sha256 = sha256
         """sha256 of the downloaded PDF, so the vision path can still take it."""
+        self.data = data
+        """The PDF itself, for a vision transcription in the poll (Claude fallback)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +54,8 @@ class PdfText:
     sha256: str
     text: str
     ocr: bool = False
+    data: bytes = field(default=b"", repr=False)
+    """The PDF bytes of an image-only PDF (for a vision transcription in the poll)."""
 
 
 def sha256_hex(data: bytes) -> str:
@@ -148,13 +152,15 @@ def ocr(data: bytes, *, dpi: int = OCR_DPI, lang: str = OCR_LANG,
         return "\f".join(pages)
 
 
-def render_pages(data: bytes, *, dpi: int = RENDER_DPI,
+def render_pages(data: bytes, *, dpi: int = RENDER_DPI, gray: bool = False,
                  timeout: float = RENDER_TIMEOUT) -> list[bytes]:  # fmt: skip
-    """Render every page of ``data`` to PNG with ``pdftoppm``; one PNG per page, in order."""
+    """Render every page of ``data`` to PNG with ``pdftoppm`` (``gray``: greyscale); one PNG
+    per page, in order."""
     with tempfile.TemporaryDirectory(prefix="vonk-render-") as tmp:
         src = Path(tmp) / "in.pdf"
         src.write_bytes(data)
-        _run(["pdftoppm", "-r", str(dpi), "-png", str(src), str(Path(tmp) / "page")],
+        mode = ["-gray"] if gray else []
+        _run(["pdftoppm", "-r", str(dpi), "-png", *mode, str(src), str(Path(tmp) / "page")],
              timeout, "poppler-utils")  # fmt: skip
         pages = [png.read_bytes() for png in sorted(Path(tmp).glob("page-*.png"))]
     if not pages:
@@ -177,5 +183,5 @@ def fetch_text(
         return PdfText(sha256=sha256, text=text)
     text = ocr(data)
     if not text.strip():
-        raise EmptyPdfError("PDF has no text layer and OCR found no text", sha256)
-    return PdfText(sha256=sha256, text=text, ocr=True)
+        raise EmptyPdfError("PDF has no text layer and OCR found no text", sha256, data)
+    return PdfText(sha256=sha256, text=text, ocr=True, data=data)

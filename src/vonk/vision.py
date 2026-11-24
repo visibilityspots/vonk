@@ -1,14 +1,16 @@
-"""Vision transcripts of image-only vonk PDFs: an Ollama client, the Nomad dispatch and the
-``vonk vision`` command.
+"""Vision transcripts of image-only vonk PDFs: an Ollama client, a Claude page reader, the
+Nomad dispatch and the ``vonk vision`` command.
 
 An image-only vonk (a poster without a text layer) is never extracted from tesseract
 output. Instead the poll dispatches ``vonk vision`` as a parameterized batch job next to an
 Ollama server with a vision model. That job downloads the PDF, checks its sha256, renders
-every page twice (150 and 200 dpi), transcribes each render and stores the transcript in
-the service only when both contain the same digits (dates and times are the part a model
-gets wrong). The dispatch carries ``VISION_VERSION``; a job image with another version
-refuses the run instead of storing a transcript under a key the poll does not ask for. The
-next poll extracts from the stored transcript as from any text layer.
+every page twice at 150 dpi (colour and greyscale), transcribes each render and stores the
+transcript in the service only when both contain the same digits (dates and times are the
+part a model gets wrong). The dispatch carries ``VISION_VERSION``; a job image with another
+version refuses the run instead of storing a transcript under a key the poll does not ask
+for. Every failure is recorded per PDF in the service, so the poll can fall back to
+reading the poster with Claude (same renders, same prompt, same digit rule). The next poll
+extracts from the stored transcript as from any text layer.
 
 Exit codes of ``vonk vision``: 0 ok, 1 any failure (always reported to the service with
 ``source = "vision"``), 2 missing settings or job meta (no network calls at all).
@@ -30,20 +32,23 @@ from typing import Any
 import httpx
 
 from vonk.config import Settings
+from vonk.extract import FALLBACK_BETA, MODEL
 from vonk.ingest import ALLOWED_HOSTS, describe_http_error, host_guard
 from vonk.pdf import PdfError, download, render_pages, sha256_hex
 
 log = logging.getLogger("vonk.vision")
 
-VISION_VERSION = "2026-11-24.1"
-"""Keys the stored transcript: bump on any change to the prompt or the default model."""
+VISION_VERSION = "2026-11-24.2"
+"""Keys the stored transcript: bump on any change to the prompt, the renders or the default
+model."""
 
 PROMPT = (
     "This image is a monthly activity calendar (a 'vonk') of one age group of a Flemish "
     "scouts group. Transcribe it to plain text: one line per activity, in the order shown. "
     "Each line: the date exactly as written (weekday, day number, month), then the times as "
     "written, then the activity name, then any remarks (place, what to bring). Copy the "
-    "words as written; do not add anything that is not on the poster."
+    "words as written; do not add anything that is not on the poster. "
+    "Output only the transcription lines: no title, no headings, no notes or comments."
 )
 
 PAGE_TIMEOUT = 15 * 60.0
@@ -57,9 +62,13 @@ PDF_URL_ENV = ("NOMAD_META_PDF_URL", "PDF_URL")
 PDF_SHA256_ENV = ("NOMAD_META_PDF_SHA256", "PDF_SHA256")
 VISION_VERSION_ENV = ("NOMAD_META_VISION_VERSION", "VISION_VERSION")
 
-FIRST_DPI = 150
-SECOND_DPI = 200
-"""The second transcription reads a different render, so the two runs are not one guess."""
+RENDER_DPI = 150
+"""Both reads use 150 dpi: a larger render runs a small GPU out of memory. The second read
+is a greyscale render, so the two runs are not one guess on the same pixels."""
+CLAUDE_MAX_TOKENS = 4096
+
+ENGINE_OLLAMA = "ollama"
+ENGINE_CLAUDE = "claude"
 
 PageReader = Callable[[bytes], str]
 
@@ -140,15 +149,65 @@ def transcribe_page(
     }
     try:
         resp = http.post(f"{url.rstrip('/')}/api/chat", json=body, timeout=timeout)
-        resp.raise_for_status()
-        content = resp.json()["message"]["content"]
     except httpx.HTTPError as exc:
-        raise VisionError(f"Ollama /api/chat: {describe_http_error(exc)}") from exc
+        raise VisionError(f"Ollama /api/chat unreachable: {describe_http_error(exc)}") from exc
+    if not resp.is_success:
+        raise VisionError(
+            f"Ollama /api/chat: HTTP {resp.status_code} (server error, e.g. the model runner "
+            f"crashed or ran out of memory){_ollama_error(resp)}"
+        )
+    try:
+        answer = resp.json()
+        content = answer["message"]["content"]
     except (ValueError, KeyError, TypeError) as exc:
         raise VisionError(f"Ollama /api/chat: malformed body: {type(exc).__name__}") from exc
     if not isinstance(content, str) or not content.strip():
-        raise VisionError("Ollama /api/chat: empty transcript")
+        reason = answer.get("done_reason") if isinstance(answer, Mapping) else None
+        raise VisionError(
+            f"Ollama /api/chat: the model returned empty content (done_reason={reason!r})"
+        )
     return content.strip()
+
+
+def _ollama_error(resp: httpx.Response) -> str:
+    """``: <message>`` from Ollama's ``{"error": ...}`` body, shortened; else empty."""
+    try:
+        message = resp.json().get("error")
+    except (ValueError, AttributeError):
+        return ""
+    return f": {str(message)[:200]}" if message else ""
+
+
+def claude_read_page(client: Any, png: bytes, *, model: str = MODEL) -> str:
+    """Ask Claude for a plain-text transcript of one page image (same prompt as Ollama)."""
+    image = {"type": "base64", "media_type": "image/png", "data": base64.b64encode(png).decode()}
+    try:
+        response = client.beta.messages.create(
+            model=model,
+            max_tokens=CLAUDE_MAX_TOKENS,
+            betas=[FALLBACK_BETA],
+            fallbacks="default",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "source": image},
+                        {"type": "text", "text": PROMPT},
+                    ],
+                }
+            ],
+        )
+    except Exception as exc:  # anthropic.APIError and transport errors alike
+        raise VisionError(f"Claude API call failed: {type(exc).__name__}: {exc}") from exc
+    stop = getattr(response, "stop_reason", None)
+    if stop in ("refusal", "max_tokens"):
+        raise VisionError(f"Claude stopped with stop_reason={stop!r}")
+    text = "".join(
+        b.text for b in response.content if getattr(b, "type", None) == "text"
+    ).strip()
+    if not text:
+        raise VisionError("Claude returned no transcript")
+    return text
 
 
 def digits(text: str) -> list[str]:
@@ -268,18 +327,30 @@ class VisionRun:
         actual = sha256_hex(data)
         if actual != pdf_sha256:
             raise VisionError(f"PDF sha256 {actual} differs from the dispatched {pdf_sha256}")
-        pages = self.render(data, dpi=FIRST_DPI)
-        second_pages = self.render(data, dpi=SECOND_DPI)
+        pages = self.render(data, dpi=RENDER_DPI)
+        second_pages = self.render(data, dpi=RENDER_DPI, gray=True)
         url, model = self.settings.vonk_vision_url, self.settings.vonk_vision_model
         assert url is not None
         wait_for_model(self.ollama_http, url, model,
                        digest=self.settings.vonk_vision_model_digest, sleep=self.sleep,
                        clock=self.monotonic)  # fmt: skip
         log.info("transcribing %d page(s) twice with %s", len(pages), model)
+
         def read(png: bytes) -> str:
             return transcribe_page(self.ollama_http, url, model, png)
 
         return transcribe(pages, second_pages, read)
+
+    def fail(self, pdf_sha256: str, reason: str) -> None:
+        """Count a failure and record it for this PDF, so the poll can fall back to Claude."""
+        from vonk.poll import ServiceError
+
+        self.errors.append(f"vision {pdf_sha256}: {reason}")
+        log.error("%s", reason)
+        try:
+            self.service.vision_failure(pdf_sha256, reason, ENGINE_OLLAMA)
+        except ServiceError as exc:
+            log.error("vision failure not recorded: %s", exc)
 
     def run(self, pdf_url: str, pdf_sha256: str, vision_version: str | None = None) -> int:
         """``vision_version`` is the dispatcher's VISION_VERSION (None: not sent)."""
@@ -296,13 +367,12 @@ class VisionRun:
                 log.info("transcript of %s already stored; nothing to do", pdf_sha256)
             else:
                 text = self.transcript(pdf_url, pdf_sha256)
-                self.service.put_transcript(pdf_sha256, VISION_VERSION, text)
+                self.service.put_transcript(pdf_sha256, VISION_VERSION, text, ENGINE_OLLAMA)
                 log.info("stored transcript of %s (%d chars)", pdf_sha256, len(text))
         except (PdfError, VisionError, ServiceError) as exc:
-            self.errors.append(f"vision {pdf_sha256}: {exc}")
-            log.error("%s", exc)
+            self.fail(pdf_sha256, str(exc))
         except Exception as exc:  # report anything unexpected, then fail the run
-            self.errors.append(f"vision {pdf_sha256}: unexpected {type(exc).__name__}: {exc}")
+            self.fail(pdf_sha256, f"unexpected {type(exc).__name__}: {exc}")
             log.exception("vision failed")
         ok = not self.errors
         report = {

@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS transcripts (
     vision_version TEXT NOT NULL,
     text TEXT NOT NULL,
     created_at REAL NOT NULL,
+    engine TEXT,
     PRIMARY KEY (pdf_sha256, vision_version)
 );
 CREATE TABLE IF NOT EXISTS vision_dispatches (
@@ -123,11 +124,19 @@ CREATE TABLE IF NOT EXISTS vision_dispatches (
     first_dispatched_at REAL NOT NULL,
     dispatched_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS vision_failures (
+    pdf_sha256 TEXT PRIMARY KEY,
+    failed_at REAL NOT NULL,
+    reason TEXT NOT NULL,
+    engine TEXT NOT NULL
+);
 """
 
 # Columns added after a table first shipped: (table, column, declaration). CREATE TABLE IF
 # NOT EXISTS leaves an existing table alone, so these are added on open when missing.
-_ADDED_COLUMNS = (("seen", "ocr", "INTEGER"),)
+_ADDED_COLUMNS = (("seen", "ocr", "INTEGER"), ("transcripts", "engine", "TEXT"))
+
+MAX_FAILURE_REASON = 300
 
 
 def hash_token(token: str) -> str:
@@ -259,20 +268,50 @@ class Store:
 
     # --- vision transcripts and dispatches ------------------------------------------------
 
-    def get_transcript(self, pdf_sha256: str, vision_version: str) -> str | None:
+    def get_transcript(self, pdf_sha256: str, vision_version: str) -> dict[str, str] | None:
+        """``{"text", "engine"}``; rows from before the engine column count as ``ollama``."""
         rows = self._query(
-            "SELECT text FROM transcripts WHERE pdf_sha256=? AND vision_version=?",
+            "SELECT text, engine FROM transcripts WHERE pdf_sha256=? AND vision_version=?",
             (pdf_sha256, vision_version),
         )
-        return rows[0]["text"] if rows else None
+        if not rows:
+            return None
+        return {"text": rows[0]["text"], "engine": rows[0]["engine"] or "ollama"}
 
-    def put_transcript(self, pdf_sha256: str, vision_version: str, text: str) -> None:
+    def put_transcript(
+        self, pdf_sha256: str, vision_version: str, text: str, engine: str = "ollama"
+    ) -> None:
         with self._tx() as c:
             c.execute(
-                "INSERT OR REPLACE INTO transcripts (pdf_sha256, vision_version, text, created_at)"
-                " VALUES (?,?,?,?)",
-                (pdf_sha256, vision_version, text, self.clock()),
+                "INSERT OR REPLACE INTO transcripts (pdf_sha256, vision_version, text,"
+                " created_at, engine) VALUES (?,?,?,?,?)",
+                (pdf_sha256, vision_version, text, self.clock(), engine),
             )
+
+    def record_vision_failure(self, pdf_sha256: str, reason: str, engine: str) -> None:
+        """Remember the latest failed vision transcription of a PDF (reason shortened)."""
+        with self._tx() as c:
+            c.execute(
+                "INSERT OR REPLACE INTO vision_failures (pdf_sha256, failed_at, reason, engine)"
+                " VALUES (?,?,?,?)",
+                (pdf_sha256, self.clock(), reason[:MAX_FAILURE_REASON], engine),
+            )
+
+    def vision_status(self, pdf_sha256: str) -> dict[str, Any]:
+        """Latest successful dispatch and latest failure of a PDF (None when absent)."""
+        d = self._query(
+            "SELECT dispatched_at FROM vision_dispatches WHERE pdf_sha256=?", (pdf_sha256,)
+        )
+        f = self._query(
+            "SELECT failed_at, reason, engine FROM vision_failures WHERE pdf_sha256=?",
+            (pdf_sha256,),
+        )
+        return {
+            "dispatched_at": d[0]["dispatched_at"] if d else None,
+            "failed_at": f[0]["failed_at"] if f else None,
+            "failure": f[0]["reason"] if f else None,
+            "failure_engine": f[0]["engine"] if f else None,
+        }
 
     def dispatch_allowed(self, pdf_sha256: str, min_interval: float) -> bool:
         """False while the last successful vision dispatch of ``pdf_sha256`` is less than

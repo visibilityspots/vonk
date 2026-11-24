@@ -12,10 +12,14 @@ Wire shapes (matched by ``vonk.poll.ServiceClient``):
 - ``GET  /api/cache/{sha}/{prompt_version}`` -> ``{"spans": [...]}`` or 404
 - ``POST /api/scopes/{scope_key}/desired`` ``{post, pdf_sha256, prompt_version, ocr, spans,
   events, warnings}`` -> ``{"changeset_id": str|None, "ops": int, ...}``
-- ``GET  /api/transcripts/{sha}/{vision_version}`` -> ``{"text": str}`` or 404
-- ``PUT  /api/transcripts/{sha}/{vision_version}`` ``{text}`` -> ``{}`` (from ``vonk vision``)
-- ``GET  /api/vision-dispatch/{sha}`` -> ``{"dispatch": bool}``: false while the last
-  successful vision dispatch of that PDF is less than 12 hours old
+- ``GET  /api/transcripts/{sha}/{vision_version}`` -> ``{"text": str, "engine": str}`` or 404
+- ``PUT  /api/transcripts/{sha}/{vision_version}`` ``{text, engine}`` -> ``{}``; ``engine`` is
+  ``ollama`` (``vonk vision``, the default) or ``claude`` (the poll's fallback)
+- ``GET  /api/vision-dispatch/{sha}`` -> ``{"dispatch": bool, "dispatched_at",
+  "dispatch_age", "failed_at", "failure"}``: ``dispatch`` is false while the last successful
+  vision dispatch of that PDF is less than 12 hours old; the rest is null when absent
+- ``POST /api/vision-failures`` ``{pdf_sha256, reason, engine}`` -> ``{}``: a failed vision
+  transcription of that PDF (the latest one is kept)
 - ``POST /api/vision-dispatch`` ``{pdf_sha256, post_id, ok, modified, scope_key}`` -> ``{}``:
   the outcome of a dispatch; ``ok`` records it (starting the 12 hour window) and marks the
   post seen as image-only, so the poll skips it without a download until the transcript is
@@ -98,6 +102,7 @@ MAX_TRANSCRIPT_CHARS = 200_000
 
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _VISION_VERSION = re.compile(r"[0-9A-Za-z.-]{1,32}")
+ENGINES = ("ollama", "claude")
 
 SINK_ERRORS: tuple[type[Exception], ...] = (httpx.HTTPError, RuntimeError)
 
@@ -287,13 +292,42 @@ class Service:
             raise BadRequest("transcript needs a non-empty 'text'")
         if len(text) > MAX_TRANSCRIPT_CHARS:
             raise BadRequest("transcript too long")
-        self.store.put_transcript(sha, vision_version, text)
+        engine = body.get("engine", "ollama")
+        if engine not in ENGINES:
+            raise BadRequest("'engine' must be 'ollama' or 'claude'")
+        self.store.put_transcript(sha, vision_version, text, engine)
+        if engine == "claude":
+            self.metrics.vision_fallbacks.labels(result="ok").inc()
         self.metrics.refresh(self.store)
 
-    def dispatch_allowed(self, sha: str) -> bool:
+    def vision_status(self, sha: str) -> dict[str, Any]:
         if not _SHA256.fullmatch(sha):
             raise BadRequest("not a sha256")
-        return self.store.dispatch_allowed(sha, VISION_DISPATCH_INTERVAL)
+        status = self.store.vision_status(sha)
+        dispatched = status["dispatched_at"]
+        return {
+            "dispatch": self.store.dispatch_allowed(sha, VISION_DISPATCH_INTERVAL),
+            "dispatched_at": dispatched,
+            "dispatch_age": None if dispatched is None else max(0.0, self.clock() - dispatched),
+            "failed_at": status["failed_at"],
+            "failure": status["failure"],
+        }
+
+    def vision_failure(self, body: Any) -> None:
+        """Record a failed vision transcription of a PDF; a failed Claude fallback also
+        counts in ``vonk_vision_fallbacks_total{result="error"}``."""
+        if not isinstance(body, Mapping):
+            raise BadRequest("vision failure body must be an object")
+        sha, reason, engine = body.get("pdf_sha256"), body.get("reason"), body.get("engine")
+        if not isinstance(sha, str) or not _SHA256.fullmatch(sha):
+            raise BadRequest("not a sha256")
+        if not isinstance(reason, str) or not reason.strip():
+            raise BadRequest("vision failure needs a non-empty 'reason'")
+        if engine not in ENGINES:
+            raise BadRequest("'engine' must be 'ollama' or 'claude'")
+        self.store.record_vision_failure(sha, reason.strip(), engine)
+        if engine == "claude":
+            self.metrics.vision_fallbacks.labels(result="error").inc()
 
     def vision_dispatch(self, body: Any) -> None:
         """Record the outcome of a vision dispatch: a success starts the 12 hour window,
@@ -620,10 +654,10 @@ def routes(service: Service) -> list[Route]:
             except BadRequest as exc:
                 return JSONResponse({"error": str(exc)}, status_code=400)
             return JSONResponse({})
-        text = await run_in_threadpool(service.store.get_transcript, sha, version)
-        if text is None:
+        found = await run_in_threadpool(service.store.get_transcript, sha, version)
+        if found is None:
             return JSONResponse({"error": "no transcript"}, status_code=404)
-        return JSONResponse({"text": text})
+        return JSONResponse(found)
 
     async def vision_dispatch(request: Request) -> Response:
         if (denied := _guard(service, request)) is not None:
@@ -635,14 +669,24 @@ def routes(service: Service) -> list[Route]:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse({})
 
-    async def dispatch_allowed(request: Request) -> Response:
+    async def vision_status(request: Request) -> Response:
         if (denied := _guard(service, request)) is not None:
             return denied
         try:
-            allowed = await run_in_threadpool(service.dispatch_allowed, request.path_params["sha"])
+            status = await run_in_threadpool(service.vision_status, request.path_params["sha"])
         except BadRequest as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        return JSONResponse({"dispatch": allowed})
+        return JSONResponse(status)
+
+    async def vision_failure(request: Request) -> Response:
+        if (denied := _guard(service, request)) is not None:
+            return denied
+        try:
+            body = await _json(request)
+            await run_in_threadpool(service.vision_failure, body)
+        except BadRequest as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({})
 
     async def poll_report(request: Request) -> Response:
         if (denied := _guard(service, request, allow_degraded=True)) is not None:
@@ -662,6 +706,7 @@ def routes(service: Service) -> list[Route]:
             "/api/transcripts/{sha}/{vision_version}", transcript, methods=["GET", "PUT"]
         ),
         Route("/api/vision-dispatch", vision_dispatch, methods=["POST"]),
-        Route("/api/vision-dispatch/{sha}", dispatch_allowed, methods=["GET"]),
+        Route("/api/vision-dispatch/{sha}", vision_status, methods=["GET"]),
+        Route("/api/vision-failures", vision_failure, methods=["POST"]),
         Route("/api/poll-report", poll_report, methods=["POST"]),
     ]

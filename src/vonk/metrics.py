@@ -105,6 +105,14 @@ class Metrics:
             "Failed vision dispatches and vision job reports with ok=false",
             registry=r,
         )
+        self.vision_fallbacks = Counter(
+            "vonk_vision_fallbacks",
+            "Claude fallback transcriptions of image-only PDFs attempted by the poll",
+            ["result"],
+            registry=r,
+        )
+        for result in ("ok", "error"):
+            self.vision_fallbacks.labels(result=result)
         self.scopes_needing_attention = Gauge(
             "vonk_scopes_needing_attention",
             "Scopes that stopped announcing after repeated conflicts",

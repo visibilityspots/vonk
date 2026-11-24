@@ -299,3 +299,19 @@ def test_ocr_reads_sparse_text(monkeypatch):
     monkeypatch.setattr(vonk.pdf, "_run", fake_run)
     assert ocr(PDF) == "Dropping"
     assert commands[1][-2:] == ["--psm", "11"]
+
+
+def test_render_pages_gray_asks_pdftoppm_for_greyscale(monkeypatch):
+    import vonk.pdf
+
+    commands = []
+
+    def fake_run(cmd, timeout, package):
+        commands.append(cmd)
+        Path(cmd[-1] + "-1.png").write_bytes(b"png")
+
+    monkeypatch.setattr(vonk.pdf, "_run", fake_run)
+    assert render_pages(PDF, gray=True) == [b"png"]
+    assert render_pages(PDF) == [b"png"]
+    assert commands[0][:5] == ["pdftoppm", "-r", "150", "-png", "-gray"]
+    assert "-gray" not in commands[1]

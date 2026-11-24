@@ -59,6 +59,7 @@ ROUTES = [
     ("PUT", f"/api/transcripts/{SHA}/v1", {"text": "Zondag 8 november Kampmenu"}),
     ("GET", f"/api/vision-dispatch/{SHA}", None),
     ("POST", "/api/vision-dispatch", {"pdf_sha256": SHA, "post_id": 2736, "ok": True}),
+    ("POST", "/api/vision-failures", {"pdf_sha256": SHA, "reason": "boom", "engine": "ollama"}),
 ]
 
 
@@ -411,8 +412,15 @@ def test_transcript_put_and_get(world):
     resp = world.client.put(path, json={"text": "Zondag 8 november Kampmenu"}, headers=world.auth)
     assert resp.status_code == 200
     assert world.client.get(path, headers=world.auth).json() == {
-        "text": "Zondag 8 november Kampmenu"
+        "text": "Zondag 8 november Kampmenu", "engine": "ollama"
     }
+    resp = world.client.put(path, json={"text": "Zondag 8 november", "engine": "claude"},
+                            headers=world.auth)  # fmt: skip
+    assert resp.status_code == 200
+    assert world.client.get(path, headers=world.auth).json()["engine"] == "claude"
+    assert metric(world, 'vonk_vision_fallbacks_total{result="ok"}') == 1
+    resp = world.client.put(path, json={"text": "x", "engine": "gpt"}, headers=world.auth)
+    assert resp.status_code == 400
     assert world.client.get(f"/api/transcripts/{SHA}/v2", headers=world.auth).status_code == 404
 
 
@@ -589,3 +597,39 @@ def test_seen_rows_from_before_the_ocr_flag_are_reprocessed_once_without_any_eff
     assert poll_counting() == 0  # second run: a no-op
     assert calls == [] and len(world.gotify.messages) == notices
     assert world.store.desired_all() == reposted  # nothing re-posted (updated_at unchanged)
+
+
+def fail(w, sha=SHA, reason="Ollama /api/chat: HTTP 500", engine="ollama"):
+    body = {"pdf_sha256": sha, "reason": reason, "engine": engine}
+    return w.client.post("/api/vision-failures", json=body, headers=w.auth)
+
+
+def test_vision_failures_show_up_in_the_dispatch_status(world):
+    status = world.client.get(f"/api/vision-dispatch/{SHA}", headers=world.auth).json()
+    assert status == {"dispatch": True, "dispatched_at": None, "dispatch_age": None,
+                      "failed_at": None, "failure": None}  # fmt: skip
+    dispatch(world)
+    world.clock.now += 600
+    assert fail(world).status_code == 200
+    world.clock.now += 60
+    status = world.client.get(f"/api/vision-dispatch/{SHA}", headers=world.auth).json()
+    assert status["dispatch"] is False
+    assert status["dispatched_at"] == world.clock.now - 660
+    assert status["dispatch_age"] == 660
+    assert status["failed_at"] == world.clock.now - 60
+    assert status["failure"] == "Ollama /api/chat: HTTP 500"
+    assert metric(world, 'vonk_vision_fallbacks_total{result="error"}') == 0
+    assert fail(world, engine="claude").status_code == 200
+    assert metric(world, 'vonk_vision_fallbacks_total{result="error"}') == 1
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [{"reason": "x", "engine": "ollama"}, {"pdf_sha256": "x", "reason": "x", "engine": "ollama"},
+     {"pdf_sha256": SHA, "reason": " ", "engine": "ollama"},
+     {"pdf_sha256": SHA, "reason": "x", "engine": "gpt"}, ["x"]],
+)  # fmt: skip
+def test_vision_failure_validation(world, payload):
+    resp = world.client.post("/api/vision-failures", json=payload, headers=world.auth)
+    assert resp.status_code == 400
+    assert world.store.vision_status(SHA)["failed_at"] is None

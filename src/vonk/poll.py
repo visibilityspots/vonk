@@ -7,8 +7,11 @@ download/extraction errors), 2 missing poll secrets (no network calls at all).
 
 An image-only PDF (no text layer) is extracted from its vision transcript, never from OCR
 text: when the service has no transcript yet, the poll dispatches the vision job (at most
-once per 12 hours per PDF) and leaves the post unseen, so the next poll picks the transcript
-up. Such extractions are cached under ``VISION_PROMPT_VERSION``.
+once per 12 hours per PDF) and leaves the post pending, so a later poll picks the transcript
+up. When that job failed for the PDF, produced nothing within ``VONK_VISION_FALLBACK_AFTER``
+hours, or dispatch is not configured, the poll reads the poster itself with Claude (two
+renders, the same digit rule), stores that transcript with engine ``claude`` and goes on in
+the same run. Such extractions are cached under ``VISION_PROMPT_VERSION``.
 """
 
 from __future__ import annotations
@@ -42,8 +45,16 @@ from vonk.ingest import (
     ingest,
 )
 from vonk.models import Event, ExtractedSpan, Scope, VonkKind, VonkPost
-from vonk.pdf import EmptyPdfError, PdfError, PdfText, fetch_text
-from vonk.vision import VISION_VERSION, VisionError, nomad_dispatch
+from vonk.pdf import EmptyPdfError, PdfError, PdfText, fetch_text, render_pages
+from vonk.vision import (
+    ENGINE_CLAUDE,
+    RENDER_DPI,
+    VISION_VERSION,
+    VisionError,
+    claude_read_page,
+    nomad_dispatch,
+    transcribe,
+)
 
 log = logging.getLogger("vonk.poll")
 
@@ -58,7 +69,8 @@ VisionDispatcher = Callable[[str, str], str]
 
 VISION_PROMPT_VERSION = PROMPT_VERSION + "-vision1"
 """Cache key of extractions from a vision transcript; text-layer PDFs keep PROMPT_VERSION."""
-VISION_WARNING = "vision transcript: check dates against the poster"
+VISION_WARNING = "vision transcript ({engine}): check dates against the poster"
+"""Fixed ChangeSet warning on every extraction from a transcript; names the engine."""
 
 Seen = tuple[datetime, str | None, bool | None]
 """(last processed ``modified``, PDF sha256, image-only PDF or None when not recorded)."""
@@ -126,8 +138,8 @@ class ServiceClient:
         except (ValueError, KeyError, TypeError) as exc:
             raise ServiceError(f"GET {path}: malformed body: {exc}") from exc
 
-    def transcript(self, sha256: str, vision_version: str) -> str | None:
-        """Stored vision transcript of the PDF; None on a miss (404)."""
+    def transcript(self, sha256: str, vision_version: str) -> tuple[str, str] | None:
+        """Stored vision transcript of the PDF and its engine; None on a miss (404)."""
         path = f"/api/transcripts/{sha256}/{vision_version}"
         resp = self._request("GET", path)
         if resp.status_code == 404:
@@ -135,26 +147,39 @@ class ServiceClient:
         if not resp.is_success:
             raise self._fail("GET", path, resp)
         try:
-            return str(resp.json()["text"])
-        except (ValueError, KeyError, TypeError) as exc:
+            body = resp.json()
+            return str(body["text"]), str(body.get("engine") or "ollama")
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
             raise ServiceError(f"GET {path}: malformed body: {exc}") from exc
 
-    def put_transcript(self, sha256: str, vision_version: str, text: str) -> None:
+    def put_transcript(
+        self, sha256: str, vision_version: str, text: str, engine: str = "ollama"
+    ) -> None:
         path = f"/api/transcripts/{sha256}/{vision_version}"
-        resp = self._request("PUT", path, json={"text": text})
+        resp = self._request("PUT", path, json={"text": text, "engine": engine})
         if not resp.is_success:
             raise self._fail("PUT", path, resp)
 
-    def dispatch_allowed(self, sha256: str) -> bool:
-        """False while a successful vision dispatch of this PDF is still recent."""
+    def vision_status(self, sha256: str) -> dict[str, Any]:
+        """``dispatch`` (False while a successful dispatch is recent), ``dispatch_age``
+        (seconds, None without a dispatch), ``dispatched_at`` and ``failed_at``."""
         path = f"/api/vision-dispatch/{sha256}"
         resp = self._request("GET", path)
         if not resp.is_success:
             raise self._fail("GET", path, resp)
         try:
-            return bool(resp.json()["dispatch"])
+            body = dict(resp.json())
+            body["dispatch"] = bool(body["dispatch"])
+            return body
         except (ValueError, KeyError, TypeError) as exc:
             raise ServiceError(f"GET {path}: malformed body: {exc}") from exc
+
+    def vision_failure(self, sha256: str, reason: str, engine: str) -> None:
+        """Record a failed vision transcription of the PDF."""
+        body = {"pdf_sha256": sha256, "reason": reason, "engine": engine}
+        resp = self._request("POST", "/api/vision-failures", json=body)
+        if not resp.is_success:
+            raise self._fail("POST", "/api/vision-failures", resp)
 
     def vision_dispatch(
         self, sha256: str, post_id: int, ok: bool, *, modified: str = "", scope_key: str = ""
@@ -237,6 +262,8 @@ class PollRun:
         extractor: Extractor | None = None,
         normalizer: Normalizer | None = None,
         dispatch_vision: VisionDispatcher | None = None,
+        vision_client: Any = None,
+        render: Callable[..., list[bytes]] = render_pages,
         wp_url: str = WP_API_URL,
         allowed_hosts: frozenset[str] = ALLOWED_HOSTS,
         now: Callable[[], datetime] = lambda: datetime.now().astimezone(),
@@ -251,6 +278,8 @@ class PollRun:
         self.dispatch_vision = dispatch_vision or (
             lambda url, sha: nomad_dispatch(settings, url, sha)
         )
+        self._vision_client = vision_client
+        self.render = render
         self.wp_url = wp_url
         self.now = now
         self.errors: list[str] = []
@@ -278,7 +307,64 @@ class PollRun:
                             item.scope.key)  # fmt: skip
         return self.extractor(text, kind)
 
-    def request_vision(self, item: IngestedPost, pdf: PdfText) -> None:
+    @property
+    def vision_enabled(self) -> bool:
+        """An image-only PDF can be read: by the dispatched job or by the Claude fallback."""
+        return self.settings.vonk_vision_dispatch or self.settings.anthropic_api_key is not None
+
+    def fallback_due(self, status: Mapping[str, Any]) -> bool:
+        """True when the poll should read the poster itself with Claude: dispatch is not
+        configured, the vision job failed for this PDF after its latest dispatch, or that
+        dispatch is older than ``VONK_VISION_FALLBACK_AFTER`` hours without a transcript."""
+        if self.settings.anthropic_api_key is None:
+            return False
+        if not self.settings.vonk_vision_dispatch:
+            return True
+        failed, dispatched = status.get("failed_at"), status.get("dispatched_at")
+        if failed is not None and (dispatched is None or failed >= dispatched):
+            return True
+        age = status.get("dispatch_age")
+        return age is not None and age >= self.settings.vonk_vision_fallback_after * 3600
+
+    def _vision_status(self, sha256: str) -> dict[str, Any]:
+        if not self.settings.vonk_vision_dispatch:
+            return {}
+        return self.service.vision_status(sha256)
+
+    def claude_transcript(self, item: IngestedPost, pdf: PdfText) -> str | None:
+        """Read the poster with Claude: a colour and a greyscale render of every page must
+        agree on the digits. Stores the transcript (engine ``claude``) and returns it; on
+        failure records it, warns and returns None (the post stays pending)."""
+        label = f"{item.scope.key} (post {item.post.id})"
+        log.info("%s: transcribing the image-only PDF with Claude", label)
+        try:
+            pages = self.render(pdf.data, dpi=RENDER_DPI)
+            gray = self.render(pdf.data, dpi=RENDER_DPI, gray=True)
+            client = self.vision_client()
+            text = transcribe(pages, gray, lambda png: claude_read_page(client, png))
+        except (PdfError, VisionError) as exc:
+            reason = f"Claude vision fallback failed: {exc}"
+            self.warnings.append(f"{label}: {reason}")
+            log.warning("%s: %s", label, reason)
+            try:
+                self.service.vision_failure(pdf.sha256, reason, ENGINE_CLAUDE)
+            except ServiceError as err:
+                log.error("%s: vision failure not recorded: %s", label, err)
+            return None
+        self.service.put_transcript(pdf.sha256, VISION_VERSION, text, ENGINE_CLAUDE)
+        log.info("%s: stored the Claude transcript (%d chars)", label, len(text))
+        return text
+
+    def vision_client(self) -> Any:
+        if self._vision_client is None:
+            import anthropic
+
+            self._vision_client = anthropic.Anthropic(api_key=self.settings.anthropic_api_key)
+        return self._vision_client
+
+    def request_vision(
+        self, item: IngestedPost, pdf: PdfText, status: Mapping[str, Any]
+    ) -> None:
         """No transcript yet: dispatch the vision job (unless one is recent) and move on."""
         post, label = item.post, f"{item.scope.key} (post {item.post.id})"
         assert post.pdf_url is not None
@@ -286,7 +372,7 @@ class PollRun:
             self.warnings.append(f"{label}: image-only PDF skipped (vision dispatch disabled)")
             log.warning("%s: image-only PDF skipped (vision dispatch disabled)", label)
             return
-        if not self.service.dispatch_allowed(pdf.sha256):
+        if not status["dispatch"]:
             log.info("%s: vision job dispatched recently; waiting for its transcript", label)
             return
         try:
@@ -316,7 +402,8 @@ class PollRun:
 
     def vision_pending(self, seen: Seen | None, item: Any) -> bool:
         """True for an unchanged image-only post that waits for its transcript while its
-        vision job is in the 12 hour window: no download, no OCR, no dispatch."""
+        vision job is in the 12 hour window and no Claude fallback is due: no download, no
+        OCR, no dispatch."""
         if (
             seen is None
             or seen[0] != item.post.modified
@@ -328,7 +415,8 @@ class PollRun:
         sha = seen[1]
         if self.service.transcript(sha, VISION_VERSION) is not None:
             return False
-        if self.service.dispatch_allowed(sha):
+        status = self.service.vision_status(sha)
+        if status["dispatch"] or self.fallback_due(status):
             return False
         log.info("%s (post %s): waiting for the vision transcript", item.scope.key, item.post.id)
         return True
@@ -340,21 +428,28 @@ class PollRun:
             pdf = self.fetch_pdf(post.pdf_url)
         except EmptyPdfError as exc:
             # OCR found nothing, but the vision model may still read the poster
-            if not (self.settings.vonk_vision_dispatch and exc.sha256):
+            if not (self.vision_enabled and exc.sha256):
                 raise
-            pdf = PdfText(sha256=exc.sha256, text="", ocr=True)
+            pdf = PdfText(sha256=exc.sha256, text="", ocr=True, data=exc.data)
+        engine = ""
         if pdf.ocr:
-            transcript = self.service.transcript(pdf.sha256, VISION_VERSION)
-            if transcript is None:
-                self.request_vision(item, pdf)
-                return
-            text, version = transcript, VISION_PROMPT_VERSION
+            stored = self.service.transcript(pdf.sha256, VISION_VERSION)
+            if stored is None:
+                status = self._vision_status(pdf.sha256)
+                if not self.fallback_due(status):
+                    self.request_vision(item, pdf, status)
+                    return
+                claude_text = self.claude_transcript(item, pdf)
+                if claude_text is None:
+                    return
+                stored = (claude_text, ENGINE_CLAUDE)
+            (text, engine), version = stored, VISION_PROMPT_VERSION
         else:
             text, version = pdf.text, PROMPT_VERSION
         result = self.extraction(item, pdf.sha256, text, version)
         warnings = list(result.warnings)
         if pdf.ocr:
-            warnings.append(VISION_WARNING)
+            warnings.append(VISION_WARNING.format(engine=engine))
             warnings.extend(ocr_guard(result.spans, pdf.text))
         events = self.normalizer(result.spans, post, scope, warnings)
         body = {

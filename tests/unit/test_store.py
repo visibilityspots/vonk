@@ -218,7 +218,9 @@ def test_transcripts_and_vision_dispatches(tmp_path):
     store = Store(str(tmp_path / "vonk.db"), clock=lambda: now[0])
     assert store.get_transcript("sha", "v1") is None
     store.put_transcript("sha", "v1", "Zondag 8 november")
-    assert store.get_transcript("sha", "v1") == "Zondag 8 november"
+    assert store.get_transcript("sha", "v1") == {"text": "Zondag 8 november", "engine": "ollama"}
+    store.put_transcript("sha", "v1", "Zondag 8 november", engine="claude")
+    assert store.get_transcript("sha", "v1")["engine"] == "claude"
     assert store.get_transcript("sha", "v2") is None
 
     assert store.dispatch_allowed("a", 100) is True
@@ -258,3 +260,38 @@ def test_old_seen_table_gets_the_ocr_column(tmp_path):
     assert store.seen_posts()[0]["ocr"] is False
     store.close()
     assert Store(path).seen_posts()[0]["ocr"] is False  # reopening migrates nothing twice
+
+
+def test_vision_failures_and_status(tmp_path):
+    now = [1000.0]
+    store = Store(str(tmp_path / "vonk.db"), clock=lambda: now[0])
+    assert store.vision_status("a") == {"dispatched_at": None, "failed_at": None,
+                                        "failure": None, "failure_engine": None}  # fmt: skip
+    store.record_dispatch("a", 1)
+    now[0] += 10
+    store.record_vision_failure("a", "x" * 500, "ollama")
+    status = store.vision_status("a")
+    assert status["dispatched_at"] == 1000.0 and status["failed_at"] == 1010.0
+    assert status["failure"] == "x" * 300 and status["failure_engine"] == "ollama"
+    now[0] += 10
+    store.record_vision_failure("a", "Claude stopped", "claude")  # the latest one is kept
+    assert store.vision_status("a")["failure_engine"] == "claude"
+    assert store.vision_status("a")["failed_at"] == 1020.0
+
+
+def test_old_transcripts_table_gets_the_engine_column(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "vonk.db")
+    conn = sqlite3.connect(path)
+    conn.execute(
+        "CREATE TABLE transcripts (pdf_sha256 TEXT NOT NULL, vision_version TEXT NOT NULL,"
+        " text TEXT NOT NULL, created_at REAL NOT NULL, PRIMARY KEY (pdf_sha256, vision_version))"
+    )
+    conn.execute("INSERT INTO transcripts VALUES ('a', 'v1', 'Zondag 8 november', 1.0)")
+    conn.commit()
+    conn.close()
+    store = Store(path)
+    assert store.get_transcript("a", "v1") == {"text": "Zondag 8 november", "engine": "ollama"}
+    store.put_transcript("b", "v1", "t", engine="claude")
+    assert store.get_transcript("b", "v1") == {"text": "t", "engine": "claude"}
