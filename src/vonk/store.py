@@ -1,7 +1,8 @@
 """SQLite state owned by the service.
 
 Holds the UID map, extraction cache, desired events per scope, ChangeSets, approve tokens,
-per-scope conflict state, heartbeat timestamps and per-op apply results.
+per-scope conflict state, heartbeat timestamps, per-op apply results, vision transcripts
+of image-only PDFs and the vision job dispatches.
 
 One connection, one writer: the service process is the only owner of the database. Calls
 from Starlette's threadpool are serialised by an ``RLock``; ``journal_mode=DELETE`` because
@@ -32,6 +33,8 @@ TOKEN_TTL_SECONDS = 48 * 3600
 LAST_COMPLETED_POLL = "last_completed_poll"
 LAST_SUCCESSFUL_POLL = "last_successful_poll"
 LAST_NEW_VONK = "last_new_vonk"
+LAST_COMPLETED_VISION = "last_completed_vision"
+LAST_SUCCESSFUL_VISION = "last_successful_vision"
 FIRST_START = "first_start"
 FEED_CHANGED_PREFIX = "feed_changed:"
 """Per feed file: ``feed_changed:<file>`` holds the Unix time its content last changed."""
@@ -42,7 +45,8 @@ CREATE TABLE IF NOT EXISTS seen (
     modified TEXT NOT NULL,
     pdf_sha256 TEXT NOT NULL,
     scope_key TEXT NOT NULL,
-    updated_at REAL NOT NULL
+    updated_at REAL NOT NULL,
+    ocr INTEGER
 );
 CREATE TABLE IF NOT EXISTS cache (
     pdf_sha256 TEXT NOT NULL,
@@ -106,7 +110,24 @@ CREATE TABLE IF NOT EXISTS notified_warnings (
     text_hash TEXT PRIMARY KEY,
     first_seen REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS transcripts (
+    pdf_sha256 TEXT NOT NULL,
+    vision_version TEXT NOT NULL,
+    text TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    PRIMARY KEY (pdf_sha256, vision_version)
+);
+CREATE TABLE IF NOT EXISTS vision_dispatches (
+    pdf_sha256 TEXT PRIMARY KEY,
+    post_id INTEGER NOT NULL,
+    first_dispatched_at REAL NOT NULL,
+    dispatched_at REAL NOT NULL
+);
 """
+
+# Columns added after a table first shipped: (table, column, declaration). CREATE TABLE IF
+# NOT EXISTS leaves an existing table alone, so these are added on open when missing.
+_ADDED_COLUMNS = (("seen", "ocr", "INTEGER"),)
 
 
 def hash_token(token: str) -> str:
@@ -152,6 +173,13 @@ class Store:
         self._conn.execute("PRAGMA journal_mode=DELETE")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(_SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        for table, column, decl in _ADDED_COLUMNS:
+            have = {r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})")}
+            if column not in have:
+                self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
     def close(self) -> None:
         with self._lock:
@@ -184,21 +212,28 @@ class Store:
     # --- seen posts ----------------------------------------------------------------------
 
     def seen_posts(self) -> list[dict[str, Any]]:
-        rows = self._query("SELECT post_id, modified, pdf_sha256 FROM seen ORDER BY post_id")
-        return [dict(r) for r in rows]
+        """Seen posts; ``ocr`` is True for an image-only PDF, None when not recorded yet."""
+        rows = self._query(
+            "SELECT post_id, modified, pdf_sha256, ocr FROM seen ORDER BY post_id"
+        )
+        return [{**r, "ocr": None if r["ocr"] is None else bool(r["ocr"])} for r in map(dict, rows)]
 
     def is_seen(self, post_id: int) -> bool:
         return bool(self._query("SELECT 1 FROM seen WHERE post_id=?", (post_id,)))
 
-    def mark_seen(self, post_id: int, modified: str, pdf_sha256: str, scope_key: str) -> None:
+    def mark_seen(
+        self, post_id: int, modified: str, pdf_sha256: str, scope_key: str,
+        ocr: bool | None = None,
+    ) -> None:  # fmt: skip
         with self._tx() as c:
             c.execute(
-                "INSERT INTO seen (post_id, modified, pdf_sha256, scope_key, updated_at) "
-                "VALUES (?,?,?,?,?) ON CONFLICT(post_id) DO UPDATE SET modified=excluded.modified,"
-                " pdf_sha256=excluded.pdf_sha256, scope_key=excluded.scope_key,"
-                " updated_at=excluded.updated_at",
-                (post_id, modified, pdf_sha256, scope_key, self.clock()),
-            )
+                "INSERT INTO seen (post_id, modified, pdf_sha256, scope_key, updated_at, ocr) "
+                "VALUES (?,?,?,?,?,?) ON CONFLICT(post_id) DO UPDATE SET"
+                " modified=excluded.modified, pdf_sha256=excluded.pdf_sha256,"
+                " scope_key=excluded.scope_key, updated_at=excluded.updated_at, ocr=excluded.ocr",
+                (post_id, modified, pdf_sha256, scope_key, self.clock(),
+                 None if ocr is None else int(ocr)),
+            )  # fmt: skip
 
     def forget_seen_scope(self, scope_key: str) -> int:
         """Drop seen rows of a scope, so the next poll posts it again."""
@@ -221,6 +256,51 @@ class Store:
                 " VALUES (?,?,?,?)",
                 (pdf_sha256, prompt_version, json.dumps(spans), self.clock()),
             )
+
+    # --- vision transcripts and dispatches ------------------------------------------------
+
+    def get_transcript(self, pdf_sha256: str, vision_version: str) -> str | None:
+        rows = self._query(
+            "SELECT text FROM transcripts WHERE pdf_sha256=? AND vision_version=?",
+            (pdf_sha256, vision_version),
+        )
+        return rows[0]["text"] if rows else None
+
+    def put_transcript(self, pdf_sha256: str, vision_version: str, text: str) -> None:
+        with self._tx() as c:
+            c.execute(
+                "INSERT OR REPLACE INTO transcripts (pdf_sha256, vision_version, text, created_at)"
+                " VALUES (?,?,?,?)",
+                (pdf_sha256, vision_version, text, self.clock()),
+            )
+
+    def record_dispatch(self, pdf_sha256: str, post_id: int, min_interval: float) -> bool:
+        """Record a vision dispatch for ``pdf_sha256`` unless one is less than
+        ``min_interval`` seconds old. True when the caller may dispatch now."""
+        now = self.clock()
+        with self._tx() as c:
+            row = c.execute(
+                "SELECT dispatched_at FROM vision_dispatches WHERE pdf_sha256=?", (pdf_sha256,)
+            ).fetchone()
+            if row is not None and now - row["dispatched_at"] < min_interval:
+                return False
+            c.execute(
+                "INSERT INTO vision_dispatches (pdf_sha256, post_id, first_dispatched_at,"
+                " dispatched_at) VALUES (?,?,?,?) ON CONFLICT(pdf_sha256) DO UPDATE SET"
+                " post_id=excluded.post_id, dispatched_at=excluded.dispatched_at",
+                (pdf_sha256, post_id, now, now),
+            )
+            return True
+
+    def vision_pending(self, vision_version: str) -> list[float]:
+        """First dispatch time of every dispatched PDF that has no transcript yet."""
+        rows = self._query(
+            "SELECT d.first_dispatched_at FROM vision_dispatches d WHERE NOT EXISTS"
+            " (SELECT 1 FROM transcripts t WHERE t.pdf_sha256=d.pdf_sha256"
+            " AND t.vision_version=?) ORDER BY 1",
+            (vision_version,),
+        )
+        return [float(r["first_dispatched_at"]) for r in rows]
 
     # --- identity map --------------------------------------------------------------------
 

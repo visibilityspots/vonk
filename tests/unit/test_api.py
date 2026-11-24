@@ -31,11 +31,13 @@ def ev(day=3, title="Dropping", start=time(14), end=time(17), scope=SCOPE) -> Ev
                  f"{title}\n{URL}", URL)  # fmt: skip
 
 
-def body(events, *, post_id=2677, sha=SHA, modified="2026-10-05T20:09:39", warnings=()):
+def body(events, *, post_id=2677, sha=SHA, modified="2026-10-05T20:09:39", warnings=(),
+         ocr=False):  # fmt: skip
     return {
         "post": {"id": post_id, "modified": modified, "title": "Vonk oktober"},
         "pdf_sha256": sha,
         "prompt_version": "v1",
+        "ocr": ocr,
         "spans": [{"date_span": "3/10", "title_span": "Dropping"}],
         "events": [e.to_dict() for e in events],
         "warnings": list(warnings),
@@ -53,6 +55,9 @@ ROUTES = [
     ("GET", f"/api/cache/{SHA}/v1", None),
     ("POST", f"/api/scopes/{SCOPE}/desired", body([ev()])),
     ("POST", "/api/poll-report", {"ok": True, "errors": [], "warnings": ["w"]}),
+    ("GET", f"/api/transcripts/{SHA}/v1", None),
+    ("PUT", f"/api/transcripts/{SHA}/v1", {"text": "Zondag 8 november Kampmenu"}),
+    ("POST", "/api/vision-dispatch", {"pdf_sha256": SHA, "post_id": 2736}),
 ]
 
 
@@ -67,6 +72,8 @@ def test_bad_or_missing_bearer_is_401_without_side_effects(world, header, method
     assert world.store.get_desired(SCOPE) is None
     assert world.store.get_meta(LAST_COMPLETED_POLL) is None
     assert world.store.pending_count() == 0
+    assert world.store.get_transcript(SHA, "v1") is None
+    assert world.store.vision_pending("v1") == []
     assert world.gotify.messages == []
     assert world.caldav.requests == []
 
@@ -85,7 +92,7 @@ def test_desired_announces_changeset_and_stores_seen_and_cache(world):
     assert re.fullmatch(r"/c/[A-Za-z0-9_-]{43}", link)
     seen = world.client.get("/api/seen", headers=world.auth).json()
     assert seen == {"posts": [{"post_id": 2677, "modified": "2026-10-05T20:09:39",
-                               "pdf_sha256": SHA}]}  # fmt: skip
+                               "pdf_sha256": SHA, "ocr": False}]}  # fmt: skip
     cache = world.client.get(f"/api/cache/{SHA}/v1", headers=world.auth)
     assert cache.json() == {"spans": body([])["spans"]}
     assert world.client.get(f"/api/cache/{SHA}/v2", headers=world.auth).status_code == 404
@@ -392,3 +399,105 @@ def test_cli_purge_own_and_dry_run_refuse_without_settings(monkeypatch, tmp_path
     assert cli.main(["purge-own", "--calendar", "vonk-test"]) == 2
     assert cli.main(["dry-run"]) == 2
     assert not (tmp_path / "none.db").exists()
+
+
+# --- vision transcripts and dispatches ---------------------------------------------------
+
+
+def test_transcript_put_and_get(world):
+    path = f"/api/transcripts/{SHA}/v1"
+    assert world.client.get(path, headers=world.auth).status_code == 404
+    resp = world.client.put(path, json={"text": "Zondag 8 november Kampmenu"}, headers=world.auth)
+    assert resp.status_code == 200
+    assert world.client.get(path, headers=world.auth).json() == {
+        "text": "Zondag 8 november Kampmenu"
+    }
+    assert world.client.get(f"/api/transcripts/{SHA}/v2", headers=world.auth).status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("sha", "payload"),
+    [(SHA, {"text": "  "}), (SHA, {"txt": "x"}), (SHA, ["x"]), ("not-a-sha", {"text": "x"}),
+     (SHA, {"text": "x" * 200_001})],
+)  # fmt: skip
+def test_transcript_put_validation(world, sha, payload):
+    resp = world.client.put(f"/api/transcripts/{sha}/v1", json=payload, headers=world.auth)
+    assert resp.status_code == 400
+    assert world.store.get_transcript(sha, "v1") is None
+
+
+def dispatch(w, sha=SHA, post_id=2736):
+    return w.client.post("/api/vision-dispatch", json={"pdf_sha256": sha, "post_id": post_id},
+                         headers=w.auth)  # fmt: skip
+
+
+def metric(w, name: str) -> float:
+    text = w.client.get("/metrics").text
+    m = re.search(rf"^{name} (\S+)$", text, re.M)
+    assert m, name
+    return float(m.group(1))
+
+
+def test_vision_dispatch_is_allowed_once_per_12_hours(world):
+    assert dispatch(world).json() == {"dispatch": True}
+    world.clock.now += 11 * 3600
+    assert dispatch(world).json() == {"dispatch": False}
+    assert metric(world, "vonk_vision_pending") == 1
+    assert metric(world, "vonk_vision_dispatches_total") == 1
+    world.clock.now += 3600
+    assert dispatch(world).json() == {"dispatch": True}
+    assert dispatch(world, sha="b" * 64).json() == {"dispatch": True}
+    assert metric(world, "vonk_vision_dispatches_total") == 3
+    assert metric(world, "vonk_vision_pending") == 2
+
+
+def test_vision_dispatch_validation(world):
+    for payload in ({"pdf_sha256": SHA}, {"pdf_sha256": "x", "post_id": 1}, ["x"]):
+        resp = world.client.post("/api/vision-dispatch", json=payload, headers=world.auth)
+        assert resp.status_code == 400
+    assert world.store.vision_pending("v1") == []
+
+
+def test_vision_pending_age_and_transcript_clears_it(world, monkeypatch):
+    import vonk.metrics
+
+    monkeypatch.setattr(vonk.metrics.time, "time", world.clock)
+    dispatch(world)
+    world.clock.now += 3600
+    assert metric(world, "vonk_vision_oldest_pending_age_seconds") == 3600
+    from vonk.vision import VISION_VERSION
+
+    world.client.put(f"/api/transcripts/{SHA}/{VISION_VERSION}", json={"text": "x"},
+                     headers=world.auth)  # fmt: skip
+    assert metric(world, "vonk_vision_pending") == 0
+    assert metric(world, "vonk_vision_oldest_pending_age_seconds") == 0
+
+
+def test_vision_report_has_its_own_heartbeats(world):
+    from vonk.store import LAST_COMPLETED_VISION, LAST_SUCCESSFUL_VISION
+
+    report = {"source": "vision", "ok": False, "errors": ["vision x: boom"], "warnings": []}
+    assert world.client.post("/api/poll-report", json=report, headers=world.auth).status_code == 200
+    assert world.store.get_meta(LAST_COMPLETED_VISION) == world.clock.now
+    assert world.store.get_meta(LAST_SUCCESSFUL_VISION) is None
+    assert world.store.get_meta(LAST_COMPLETED_POLL) is None  # never masks a stalled poll
+    assert metric(world, "vonk_vision_errors_total") == 1
+    world.clock.now += 10
+    report = {**report, "ok": True, "errors": []}
+    world.client.post("/api/poll-report", json=report, headers=world.auth)
+    assert world.store.get_meta(LAST_SUCCESSFUL_VISION) == world.clock.now
+    assert world.store.get_meta(LAST_SUCCESSFUL_POLL) is None
+    assert metric(world, "vonk_last_successful_vision_timestamp") == world.clock.now
+    assert metric(world, "vonk_vision_errors_total") == 1
+
+    bad = {"source": "cron", "ok": True}
+    assert world.client.post("/api/poll-report", json=bad, headers=world.auth).status_code == 400
+
+
+def test_desired_stores_the_ocr_flag(world):
+    post_desired(world, [ev(3)], ocr=True)
+    (seen,) = world.client.get("/api/seen", headers=world.auth).json()["posts"]
+    assert seen["ocr"] is True
+    resp = world.client.post(f"/api/scopes/{SCOPE}/desired", json=body([ev(3)], ocr="yes"),
+                             headers=world.auth)  # fmt: skip
+    assert resp.status_code == 400

@@ -1,6 +1,6 @@
 """Command-line entry point (``vonk``).
 
-Subcommands (serve, poll, dry-run, purge-own, clear-attention) register themselves on the
+Subcommands (serve, poll, vision, dry-run, purge-own, clear-attention) register themselves on the
 parser returned by ``build_parser()``; each sets ``func`` via ``set_defaults(func=...)``.
 """
 
@@ -11,7 +11,7 @@ import logging
 import os
 from collections.abc import Sequence
 
-from vonk import __version__, poll
+from vonk import __version__, poll, vision
 from vonk.config import Settings
 
 
@@ -105,6 +105,7 @@ def build_parser() -> tuple[argparse.ArgumentParser, argparse._SubParsersAction]
     parser.add_argument("--version", action="version", version=f"vonk {__version__}")
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
     poll.register(subparsers)
+    vision.register(subparsers)
 
     p = subparsers.add_parser("serve", help="run the approve page, internal API and metrics")
     p.add_argument("--host", default="0.0.0.0")

@@ -14,7 +14,8 @@ for every tak, are also published as a public ICS feed that other parents can su
 
 ## run
 
-One image, two commands: `vonk serve` (the default) and `vonk poll`.
+One image, three commands: `vonk serve` (the default), `vonk poll` and `vonk vision`
+(see [Image-only vonks](#image-only-vonks)).
 
 ```
 $ docker run -p 8080:8080 -v vonk-data:/data --env-file vonk.env --name vonk --rm visibilityspots/vonk:latest
@@ -45,6 +46,7 @@ is 1.
 |---|---|---|
 | `vonk` | service, `count = 1` | Approve page, bearer-authenticated internal API, `/health`, `/metrics`. Sole owner of SQLite (identity, state, extraction cache, tokens) and of every CalDAV write. |
 | `vonk-poll` | periodic batch, every 6 hours | Stateless. Extracts and sends results to the service API; always reports back via `/api/poll-report`; exits non-zero on any failure. |
+| vision job | parameterized batch, dispatched by the poll | `vonk vision` on a GPU node with an Ollama sidecar: transcribes one image-only vonk and stores the transcript in the service. Optional. |
 
 The service is reachable on the internal `https` entrypoint only.
 
@@ -69,7 +71,41 @@ as missing.
 | `VONK_FEED_REPO` | (in the job) | serve | `owner/repo` of the GitHub Pages repository |
 | `VONK_FEED_TOKEN` | `feed_token` | serve | fine-grained GitHub token, that repository only, `contents: write` |
 | `VONK_FEED_BRANCH` | (in the job: `gh-pages`) | serve | branch GitHub Pages serves (default `main`) |
-| `VONK_API_URL` | (in the job) | poll | service base URL, without `/api` |
+| `VONK_API_URL` | (in the job) | poll, vision | service base URL, without `/api` |
+| `VONK_VISION_DISPATCH` | (in the job) | poll | `1` dispatches the vision job for image-only PDFs; otherwise they are skipped with a warning |
+| `VONK_VISION_JOB`, `VONK_VISION_NAMESPACE` | (in the job) | poll | Nomad job and namespace of the vision job (default `vonk-vision`, `default`) |
+| `NOMAD_SECRETS_DIR`, `NOMAD_TOKEN` | (set by Nomad) | poll | task API socket and workload identity token for the dispatch |
+| `VONK_VISION_URL` | (in the job) | vision | Ollama base URL; no default |
+| `VONK_VISION_MODEL` | (in the job) | vision | vision model (default `qwen3-vl:4b`) |
+| `VONK_VISION_MODEL_DIGEST` | (in the job) | vision | optional: the model digest Ollama reports must match |
+| `PDF_URL`, `PDF_SHA256` | (dispatch meta) | vision | the PDF to transcribe; `NOMAD_META_PDF_URL` / `NOMAD_META_PDF_SHA256` are read first |
+
+### Image-only vonks
+
+Some vonks are posters without a text layer. `tesseract` loses day numbers in calendar
+icons, so OCR text is never extracted from; it only serves as a weak check afterwards.
+
+1. The poll asks the service for a stored transcript of the PDF (`GET
+   /api/transcripts/<sha256>/<vision version>`). Without one it dispatches the vision job
+   through the Nomad task API (`$NOMAD_SECRETS_DIR/api.sock`, the poll job needs
+   `identity { env = true }` and a policy with `dispatch-job` on the vision job's
+   namespace), at most once per 12 hours per PDF (`POST /api/vision-dispatch`). The post
+   stays unseen, so a later poll picks the transcript up.
+2. `vonk vision` (a parameterized Nomad job on a GPU node with an Ollama sidecar) downloads
+   the PDF from the same allowlisted hosts, checks its sha256, renders every page at 150 dpi,
+   waits until Ollama lists the model, and transcribes every page twice. Only when both runs
+   contain exactly the same digits is the transcript stored. It always reports back with
+   `source = "vision"`, which has its own heartbeat gauges.
+3. The next poll extracts from the transcript with Claude like from a text layer and caches
+   the spans under the prompt version plus `-vision1`. The ChangeSet carries the warning
+   "vision transcript: check dates against the poster", plus a warning per title that does
+   not occur in the OCR text.
+
+A failure anywhere on this path never falls back to the OCR text. Metrics:
+`vonk_vision_pending` and `vonk_vision_oldest_pending_age_seconds` (dispatched PDFs without
+a transcript), `vonk_vision_dispatches_total`, `vonk_vision_errors_total` and
+`vonk_last_{completed,successful}_vision_timestamp`. The model has to be pulled into the
+Ollama model store beforehand; pin it with `VONK_VISION_MODEL_DIGEST`.
 
 ### Baikal calendar
 

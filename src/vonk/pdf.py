@@ -1,4 +1,8 @@
-"""PDF download, sha256 and `pdftotext -layout` text extraction, with an OCR fallback."""
+"""PDF download, sha256 and `pdftotext -layout` text extraction, with an OCR fallback.
+
+OCR text of an image-only PDF is never extracted from: it only serves as a weak guard on
+the vision transcript (``vonk.vision``), which reads the pages rendered by ``render_pages``.
+"""
 
 from __future__ import annotations
 
@@ -21,6 +25,11 @@ OCR_TIMEOUT = 120.0
 OCR_DPI = 300
 """Image-only vonks are low-res JPEG exports; tesseract needs them upscaled to read them."""
 OCR_LANG = "nld"
+OCR_PSM = "11"
+"""Sparse text: posters scatter words over the page instead of writing lines."""
+RENDER_DPI = 150
+"""Resolution of the page images sent to the vision model."""
+RENDER_TIMEOUT = 120.0
 
 
 class PdfError(RuntimeError):
@@ -128,10 +137,24 @@ def ocr(data: bytes, *, dpi: int = OCR_DPI, lang: str = OCR_LANG,
         pages = []
         for png in sorted(Path(tmp).glob("page-*.png")):
             out = png.with_suffix("")
-            _run(["tesseract", str(png), str(out), "-l", lang], timeout,
+            _run(["tesseract", str(png), str(out), "-l", lang, "--psm", OCR_PSM], timeout,
                  f"tesseract-ocr and tesseract-ocr-{lang}")  # fmt: skip
             pages.append(out.with_suffix(".txt").read_text(encoding="utf-8"))
         return "\f".join(pages)
+
+
+def render_pages(data: bytes, *, dpi: int = RENDER_DPI,
+                 timeout: float = RENDER_TIMEOUT) -> list[bytes]:  # fmt: skip
+    """Render every page of ``data`` to PNG with ``pdftoppm``; one PNG per page, in order."""
+    with tempfile.TemporaryDirectory(prefix="vonk-render-") as tmp:
+        src = Path(tmp) / "in.pdf"
+        src.write_bytes(data)
+        _run(["pdftoppm", "-r", str(dpi), "-png", str(src), str(Path(tmp) / "page")],
+             timeout, "poppler-utils")  # fmt: skip
+        pages = [png.read_bytes() for png in sorted(Path(tmp).glob("page-*.png"))]
+    if not pages:
+        raise PdfError("pdftoppm rendered no pages")
+    return pages
 
 
 def fetch_text(

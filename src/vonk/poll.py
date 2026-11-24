@@ -4,12 +4,18 @@
 (``vonk serve``). Every run ends with ``POST /api/poll-report`` (also on failure), which
 drives the liveness gauges. Exit codes: 0 ok, 1 any failure (service unreachable, 401,
 download/extraction errors), 2 missing poll secrets (no network calls at all).
+
+An image-only PDF (no text layer) is extracted from its vision transcript, never from OCR
+text: when the service has no transcript yet, the poll dispatches the vision job (at most
+once per 12 hours per PDF) and leaves the post unseen, so the next poll picks the transcript
+up. Such extractions are cached under ``VISION_PROMPT_VERSION``.
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -37,6 +43,7 @@ from vonk.ingest import (
 )
 from vonk.models import Event, ExtractedSpan, Scope, VonkKind, VonkPost
 from vonk.pdf import EmptyPdfError, PdfError, PdfText, fetch_text
+from vonk.vision import VISION_VERSION, VisionError, nomad_dispatch
 
 log = logging.getLogger("vonk.poll")
 
@@ -46,6 +53,15 @@ USER_AGENT = f"vonk/{__version__} (+https://github.com/visibilityspots/vonk)"
 Normalizer = Callable[[Sequence[ExtractedSpan], VonkPost, Scope, list[str]], list[Event]]
 Extractor = Callable[[str, VonkKind], ExtractionResult]
 PdfFetcher = Callable[[str], PdfText]
+VisionDispatcher = Callable[[str, str], str]
+"""(pdf_url, pdf_sha256) -> dispatched job id."""
+
+VISION_PROMPT_VERSION = PROMPT_VERSION + "-vision1"
+"""Cache key of extractions from a vision transcript; text-layer PDFs keep PROMPT_VERSION."""
+VISION_WARNING = "vision transcript: check dates against the poster"
+
+Seen = tuple[datetime, str | None, bool | None]
+"""(last processed ``modified``, PDF sha256, image-only PDF or None when not recorded)."""
 
 
 class ServiceError(RuntimeError):
@@ -82,14 +98,16 @@ class ServiceClient:
     def _fail(method: str, path: str, resp: httpx.Response) -> ServiceError:
         return ServiceError(f"{method} {path}: HTTP {resp.status_code}")
 
-    def seen(self) -> dict[int, tuple[datetime, str | None]]:
-        """post id -> (last processed ``modified`` timestamp, PDF sha256)."""
+    def seen(self) -> dict[int, Seen]:
+        """post id -> (last processed ``modified`` timestamp, PDF sha256, ocr flag)."""
         resp = self._request("GET", "/api/seen")
         if not resp.is_success:
             raise self._fail("GET", "/api/seen", resp)
         try:
             return {
-                int(p["post_id"]): (datetime.fromisoformat(p["modified"]), p.get("pdf_sha256"))
+                int(p["post_id"]): (
+                    datetime.fromisoformat(p["modified"]), p.get("pdf_sha256"), p.get("ocr")
+                )
                 for p in resp.json()["posts"]
             }
         except (ValueError, KeyError, TypeError) as exc:
@@ -107,6 +125,37 @@ class ServiceClient:
             return [ExtractedSpan.from_dict(s) for s in resp.json()["spans"]]
         except (ValueError, KeyError, TypeError) as exc:
             raise ServiceError(f"GET {path}: malformed body: {exc}") from exc
+
+    def transcript(self, sha256: str, vision_version: str) -> str | None:
+        """Stored vision transcript of the PDF; None on a miss (404)."""
+        path = f"/api/transcripts/{sha256}/{vision_version}"
+        resp = self._request("GET", path)
+        if resp.status_code == 404:
+            return None
+        if not resp.is_success:
+            raise self._fail("GET", path, resp)
+        try:
+            return str(resp.json()["text"])
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ServiceError(f"GET {path}: malformed body: {exc}") from exc
+
+    def put_transcript(self, sha256: str, vision_version: str, text: str) -> None:
+        path = f"/api/transcripts/{sha256}/{vision_version}"
+        resp = self._request("PUT", path, json={"text": text})
+        if not resp.is_success:
+            raise self._fail("PUT", path, resp)
+
+    def vision_dispatch(self, sha256: str, post_id: int) -> bool:
+        """Record a vision dispatch; False when one for this PDF is still recent."""
+        resp = self._request(
+            "POST", "/api/vision-dispatch", json={"pdf_sha256": sha256, "post_id": post_id}
+        )
+        if not resp.is_success:
+            raise self._fail("POST", "/api/vision-dispatch", resp)
+        try:
+            return bool(resp.json()["dispatch"])
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ServiceError(f"POST /api/vision-dispatch: malformed body: {exc}") from exc
 
     def post_desired(self, scope_key: str, body: Mapping[str, Any]) -> dict[str, Any]:
         path = f"/api/scopes/{scope_key}/desired"
@@ -130,6 +179,21 @@ class PollOptions:
     """Process every post, ignoring what the service has seen."""
     fresh: bool = False
     """Ignore the extraction cache and call the LLM again."""
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"\s+", "", text).casefold()
+
+
+def ocr_guard(spans: Sequence[ExtractedSpan], ocr_text: str) -> list[str]:
+    """Weak check of a vision extraction: every title should also occur in the OCR text
+    (case- and space-insensitive). A miss is a warning, never a reason to drop the item."""
+    haystack = _squash(ocr_text)
+    return [
+        f"vision guard: title {s.title_span!r} not found in the OCR text"
+        for s in spans
+        if _squash(s.title_span) not in haystack
+    ]
 
 
 def post_to_dict(post: VonkPost) -> dict[str, Any]:
@@ -159,6 +223,7 @@ class PollRun:
         fetch_pdf: PdfFetcher | None = None,
         extractor: Extractor | None = None,
         normalizer: Normalizer | None = None,
+        dispatch_vision: VisionDispatcher | None = None,
         wp_url: str = WP_API_URL,
         allowed_hosts: frozenset[str] = ALLOWED_HOSTS,
         now: Callable[[], datetime] = lambda: datetime.now().astimezone(),
@@ -170,6 +235,9 @@ class PollRun:
         self.fetch_pdf = fetch_pdf or (lambda url: fetch_text(wp_http, url, allowed_hosts))
         self.extractor = extractor or self._extract_with_claude
         self.normalizer = normalizer or _default_normalizer
+        self.dispatch_vision = dispatch_vision or (
+            lambda url, sha: nomad_dispatch(settings, url, sha)
+        )
         self.wp_url = wp_url
         self.now = now
         self.errors: list[str] = []
@@ -181,31 +249,59 @@ class PollRun:
         client = anthropic.Anthropic(api_key=self.settings.anthropic_api_key)
         return extract(text, kind, client=client)
 
-    def extraction(self, item: IngestedPost, pdf: PdfText) -> ExtractionResult:
-        """Cached spans when they still verify against ``pdf.text``, else a fresh run."""
+    def extraction(
+        self, item: IngestedPost, sha256: str, text: str, version: str = PROMPT_VERSION
+    ) -> ExtractionResult:
+        """Cached spans when they still verify against ``text``, else a fresh run."""
         kind = item.post.kind
         if not self.options.fresh:
-            cached = self.service.cached_spans(pdf.sha256, PROMPT_VERSION)
+            cached = self.service.cached_spans(sha256, version)
             if cached is not None:
-                kept, problems = verify_spans(cached, pdf.text)
+                kept, problems = verify_spans(cached, text)
                 if not problems:
                     log.info("%s: using cached spans (%d)", item.scope.key, len(kept))
-                    return ExtractionResult(tuple(kept), tuple(cross_check(pdf.text, kept, kind)))
+                    return ExtractionResult(tuple(kept), tuple(cross_check(text, kept, kind)))
                 log.warning("%s: cached spans no longer match the text; re-extracting",
                             item.scope.key)  # fmt: skip
-        return self.extractor(pdf.text, kind)
+        return self.extractor(text, kind)
+
+    def request_vision(self, item: IngestedPost, pdf: PdfText) -> None:
+        """No transcript yet: dispatch the vision job (unless one is recent) and move on."""
+        post, label = item.post, f"{item.scope.key} (post {item.post.id})"
+        assert post.pdf_url is not None
+        if not self.settings.vonk_vision_dispatch:
+            self.warnings.append(f"{label}: image-only PDF skipped (vision dispatch disabled)")
+            log.warning("%s: image-only PDF skipped (vision dispatch disabled)", label)
+            return
+        if not self.service.vision_dispatch(pdf.sha256, post.id):
+            log.info("%s: vision job dispatched recently; waiting for its transcript", label)
+            return
+        job_id = self.dispatch_vision(post.pdf_url, pdf.sha256)
+        log.info("%s: image-only PDF, dispatched vision job %s", label, job_id)
 
     def process(self, item: IngestedPost) -> None:
         post, scope = item.post, item.scope
         assert post.pdf_url is not None  # ingest only yields posts with a PDF link
         pdf = self.fetch_pdf(post.pdf_url)
-        result = self.extraction(item, pdf)
+        if pdf.ocr:
+            transcript = self.service.transcript(pdf.sha256, VISION_VERSION)
+            if transcript is None:
+                self.request_vision(item, pdf)
+                return
+            text, version = transcript, VISION_PROMPT_VERSION
+        else:
+            text, version = pdf.text, PROMPT_VERSION
+        result = self.extraction(item, pdf.sha256, text, version)
         warnings = list(result.warnings)
+        if pdf.ocr:
+            warnings.append(VISION_WARNING)
+            warnings.extend(ocr_guard(result.spans, pdf.text))
         events = self.normalizer(result.spans, post, scope, warnings)
         body = {
             "post": post_to_dict(post),
             "pdf_sha256": pdf.sha256,
-            "prompt_version": PROMPT_VERSION,
+            "prompt_version": version,
+            "ocr": pdf.ocr,
             "spans": [s.to_dict() for s in result.spans],
             "events": [e.to_dict() for e in events],
             "warnings": warnings,
@@ -214,14 +310,22 @@ class PollRun:
         log.info("%s: posted %d events (%d warnings), changeset %s",
                  scope.key, len(events), len(warnings), answer.get("changeset_id"))  # fmt: skip
 
-    def is_current(self, seen: tuple[datetime, str | None] | None, item: Any) -> bool:
+    def is_current(self, seen: Seen | None, item: Any) -> bool:
         """True when the post is unchanged AND its PDF was extracted with this prompt version.
 
         A ``PROMPT_VERSION`` bump thus re-extracts every post once, without ``--reextract``.
+        An image-only PDF also needs its vision transcript; a seen row without the ocr flag
+        (stored before vision transcripts existed) is processed once more.
         """
-        if seen is None or seen[0] != item.post.modified or not seen[1]:
+        if seen is None or seen[0] != item.post.modified or not seen[1] or seen[2] is None:
             return False
-        return self.service.cached_spans(seen[1], PROMPT_VERSION) is not None
+        sha, ocr = seen[1], seen[2]
+        if not ocr:
+            return self.service.cached_spans(sha, PROMPT_VERSION) is not None
+        return (
+            self.service.transcript(sha, VISION_VERSION) is not None
+            and self.service.cached_spans(sha, VISION_PROMPT_VERSION) is not None
+        )
 
     def run(self) -> int:
         started = self.now()
@@ -240,7 +344,7 @@ class PollRun:
                     # an unreadable vonk must not block every later poll; warn once instead
                     self.warnings.append(f"{item.scope.key} (post {item.post.id}): {exc}")
                     log.warning("%s: %s", item.scope.key, exc)
-                except (PdfError, ExtractionError) as exc:
+                except (PdfError, ExtractionError, VisionError) as exc:
                     self.errors.append(f"{item.scope.key} (post {item.post.id}): {exc}")
                     log.error("%s: %s", item.scope.key, exc)
         except ServiceError as exc:

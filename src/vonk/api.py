@@ -7,11 +7,17 @@ diffs against a half-applied calendar and never supersedes a ChangeSet mid-apply
 
 Wire shapes (matched by ``vonk.poll.ServiceClient``):
 
-- ``GET  /api/seen`` -> ``{"posts": [{post_id, modified, pdf_sha256}]}``
+- ``GET  /api/seen`` -> ``{"posts": [{post_id, modified, pdf_sha256, ocr}]}`` (``ocr``:
+  image-only PDF, null when stored before the flag existed)
 - ``GET  /api/cache/{sha}/{prompt_version}`` -> ``{"spans": [...]}`` or 404
-- ``POST /api/scopes/{scope_key}/desired`` ``{post, pdf_sha256, prompt_version, spans,
+- ``POST /api/scopes/{scope_key}/desired`` ``{post, pdf_sha256, prompt_version, ocr, spans,
   events, warnings}`` -> ``{"changeset_id": str|None, "ops": int, ...}``
-- ``POST /api/poll-report`` ``{started, finished, ok, errors, warnings}`` -> ``{}``
+- ``GET  /api/transcripts/{sha}/{vision_version}`` -> ``{"text": str}`` or 404
+- ``PUT  /api/transcripts/{sha}/{vision_version}`` ``{text}`` -> ``{}`` (from ``vonk vision``)
+- ``POST /api/vision-dispatch`` ``{pdf_sha256, post_id}`` -> ``{"dispatch": bool}``: records
+  a vision dispatch unless one for that PDF is less than 12 hours old
+- ``POST /api/poll-report`` ``{source, started, finished, ok, errors, warnings}`` -> ``{}``;
+  ``source`` is ``poll`` (default) or ``vision``, each with its own heartbeat gauges
 
 Every route needs ``Authorization: Bearer <VONK_API_TOKEN>`` (constant-time compare); a
 missing or wrong token is a 401 before anything else happens. In degraded mode every route
@@ -22,6 +28,7 @@ from __future__ import annotations
 
 import hmac
 import logging
+import re
 import threading
 import time
 import uuid
@@ -65,8 +72,10 @@ from vonk.notify import (
 from vonk.store import (
     FEED_CHANGED_PREFIX,
     LAST_COMPLETED_POLL,
+    LAST_COMPLETED_VISION,
     LAST_NEW_VONK,
     LAST_SUCCESSFUL_POLL,
+    LAST_SUCCESSFUL_VISION,
     Store,
 )
 
@@ -77,6 +86,13 @@ ORPHAN_SCOPE = "orphans"
 
 CONFLICT_CAP = 2
 """Consecutive 409/412 on a scope after which it needs attention and stops announcing."""
+
+VISION_DISPATCH_INTERVAL = 12 * 3600
+"""A PDF's vision job is dispatched at most once per this many seconds."""
+
+MAX_TRANSCRIPT_CHARS = 200_000
+
+_SHA256 = re.compile(r"[0-9a-f]{64}")
 
 SINK_ERRORS: tuple[type[Exception], ...] = (httpx.HTTPError, RuntimeError)
 
@@ -233,6 +249,9 @@ class Service:
             spans = list(body["spans"])
             events = [Event.from_dict(e) for e in body["events"]]
             warnings = [str(w) for w in body.get("warnings", [])]
+            ocr = body.get("ocr")
+            if ocr is not None and not isinstance(ocr, bool):
+                raise ValueError("ocr must be a boolean")
         except (KeyError, TypeError, ValueError) as exc:
             raise BadRequest(f"invalid desired body: {exc}") from exc
         if any(e.scope_key != scope_key for e in events):
@@ -246,7 +265,7 @@ class Service:
                 answer = self.propose(scope_key, warnings)
             else:  # feed-only tak: stored for the public feed, never proposed for CalDAV
                 answer = {"changeset_id": None, "ops": 0, "feed_only": True}
-            self.store.mark_seen(post_id, modified, sha, scope_key)
+            self.store.mark_seen(post_id, modified, sha, scope_key, ocr)
             if new_post:
                 now = self.clock()
                 self.store.set_meta(LAST_NEW_VONK, now)
@@ -255,21 +274,62 @@ class Service:
             answer["orphans"] = self.propose(ORPHAN_SCOPE)["ops"]
         return answer
 
+    def put_transcript(self, sha: str, vision_version: str, body: Any) -> None:
+        if not _SHA256.fullmatch(sha):
+            raise BadRequest("not a sha256")
+        text = body.get("text") if isinstance(body, Mapping) else None
+        if not isinstance(text, str) or not text.strip():
+            raise BadRequest("transcript needs a non-empty 'text'")
+        if len(text) > MAX_TRANSCRIPT_CHARS:
+            raise BadRequest("transcript too long")
+        self.store.put_transcript(sha, vision_version, text)
+        self.metrics.refresh(self.store)
+
+    def vision_dispatch(self, body: Any) -> bool:
+        """Record a vision dispatch; False when one for this PDF is still recent."""
+        try:
+            sha = str(body["pdf_sha256"])
+            post_id = int(body["post_id"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise BadRequest(f"invalid vision-dispatch body: {exc}") from exc
+        if not _SHA256.fullmatch(sha):
+            raise BadRequest("not a sha256")
+        allowed = self.store.record_dispatch(sha, post_id, VISION_DISPATCH_INTERVAL)
+        if allowed:
+            self.metrics.vision_dispatches.inc()
+            self.metrics.refresh(self.store)
+        return allowed
+
     def poll_report(self, body: Mapping[str, Any]) -> None:
         if not isinstance(body, Mapping) or not isinstance(body.get("ok"), bool):
             raise BadRequest("poll report needs a boolean 'ok'")
+        source = body.get("source", "poll")
+        if source not in ("poll", "vision"):
+            raise BadRequest("poll report 'source' must be 'poll' or 'vision'")
         now = self.clock()
-        self.store.set_meta(LAST_COMPLETED_POLL, now)
-        self.metrics.last_completed_poll.set(now)
-        if body["ok"]:
-            self.store.set_meta(LAST_SUCCESSFUL_POLL, now)
-            self.metrics.last_successful_poll.set(now)
+        if source == "vision":
+            self.store.set_meta(LAST_COMPLETED_VISION, now)
+            self.metrics.last_completed_vision.set(now)
+            if body["ok"]:
+                self.store.set_meta(LAST_SUCCESSFUL_VISION, now)
+                self.metrics.last_successful_vision.set(now)
+            else:
+                self.metrics.vision_errors.inc()
+        else:
+            self.store.set_meta(LAST_COMPLETED_POLL, now)
+            self.metrics.last_completed_poll.set(now)
+            if body["ok"]:
+                self.store.set_meta(LAST_SUCCESSFUL_POLL, now)
+                self.metrics.last_successful_poll.set(now)
         for err in body.get("errors") or []:
-            log.error("poll reported: %s", err)
+            log.error("%s reported: %s", source, err)
         warnings = [str(w) for w in body.get("warnings") or []]
         fresh = self.store.new_warnings(warnings)
         if fresh:
             self.notifier.send(*warnings_message(fresh))
+        if source == "vision":
+            self.metrics.refresh(self.store)
+            return
         self.reannounce_expired()
         if self.feed is not None:
             if self.feed_in_background:
@@ -519,6 +579,33 @@ def routes(service: Service) -> list[Route]:
             return JSONResponse({"error": "calendar unavailable"}, status_code=502)
         return JSONResponse(answer)
 
+    async def transcript(request: Request) -> Response:
+        if (denied := _guard(service, request)) is not None:
+            return denied
+        sha = request.path_params["sha"]
+        version = request.path_params["vision_version"]
+        if request.method == "PUT":
+            try:
+                body = await _json(request)
+                await run_in_threadpool(service.put_transcript, sha, version, body)
+            except BadRequest as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
+            return JSONResponse({})
+        text = await run_in_threadpool(service.store.get_transcript, sha, version)
+        if text is None:
+            return JSONResponse({"error": "no transcript"}, status_code=404)
+        return JSONResponse({"text": text})
+
+    async def vision_dispatch(request: Request) -> Response:
+        if (denied := _guard(service, request)) is not None:
+            return denied
+        try:
+            body = await _json(request)
+            allowed = await run_in_threadpool(service.vision_dispatch, body)
+        except BadRequest as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"dispatch": allowed})
+
     async def poll_report(request: Request) -> Response:
         if (denied := _guard(service, request, allow_degraded=True)) is not None:
             return denied
@@ -533,5 +620,9 @@ def routes(service: Service) -> list[Route]:
         Route("/api/seen", seen, methods=["GET"]),
         Route("/api/cache/{sha}/{prompt_version}", cache, methods=["GET"]),
         Route("/api/scopes/{scope_key}/desired", desired, methods=["POST"]),
+        Route(
+            "/api/transcripts/{sha}/{vision_version}", transcript, methods=["GET", "PUT"]
+        ),
+        Route("/api/vision-dispatch", vision_dispatch, methods=["POST"]),
         Route("/api/poll-report", poll_report, methods=["POST"]),
     ]

@@ -137,3 +137,22 @@ def test_from_env_defaults_to_os_environ(monkeypatch):
     s = Settings.from_env()
     assert s.baikal_calendar is None
     assert s.gotify_url == "https://gotify.example"
+
+
+def test_vision_settings():
+    s = Settings.from_env(FULL_ENV)
+    assert s.vonk_vision_url is None and s.vonk_vision_dispatch is False
+    assert s.vonk_vision_model == "qwen3-vl:4b" and s.vonk_vision_model_digest is None
+    assert s.missing_secrets("vision") == ["VONK_VISION_URL"]
+    s = Settings.from_env({**FULL_ENV, "VONK_VISION_URL": "http://ollama.example:11434",
+                           "VONK_VISION_MODEL": "other:2b", "VONK_VISION_MODEL_DIGEST": "abc",
+                           "VONK_VISION_DISPATCH": "1", "VONK_VISION_JOB": "job",
+                           "VONK_VISION_NAMESPACE": "ns", "NOMAD_TOKEN": "wi-secret",
+                           "NOMAD_SECRETS_DIR": "/secrets"})  # fmt: skip
+    assert s.missing_secrets("vision") == []
+    assert (s.vonk_vision_model, s.vonk_vision_model_digest) == ("other:2b", "abc")
+    assert (s.vonk_vision_dispatch, s.vonk_vision_job, s.vonk_vision_namespace) == (
+        True, "job", "ns",
+    )  # fmt: skip
+    assert "wi-secret" not in repr(s)
+    assert Settings.from_env({"VONK_VISION_DISPATCH": "<no value>"}).vonk_vision_dispatch is False

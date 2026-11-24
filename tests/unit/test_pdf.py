@@ -21,6 +21,7 @@ from vonk.pdf import (
     fetch_text,
     ocr,
     pdftotext,
+    render_pages,
     sha256_hex,
 )
 
@@ -273,3 +274,27 @@ def test_download_error_names_host_and_status_only():
         download(_client(lambda r: httpx.Response(503, text="stack trace at /srv/x")),
                  "https://scoutstervant.be/private/path.pdf")  # fmt: skip
     assert str(info.value) == "download failed: scoutstervant.be: HTTP 503"
+
+
+def test_render_pages_gives_one_png_per_page():
+    (page,) = render_pages(PDF)
+    assert page.startswith(b"\x89PNG")
+    with pytest.raises(PdfError, match="pdftoppm exited"):
+        render_pages(b"%PDF-1.4\nnot really a pdf")
+
+
+def test_ocr_reads_sparse_text(monkeypatch):
+    import vonk.pdf
+
+    commands = []
+
+    def fake_run(cmd, timeout, package):
+        commands.append(cmd)
+        if cmd[0] == "pdftoppm":
+            Path(cmd[-1] + "-1.png").write_bytes(b"png")
+        else:
+            Path(cmd[2] + ".txt").write_text("Dropping", encoding="utf-8")
+
+    monkeypatch.setattr(vonk.pdf, "_run", fake_run)
+    assert ocr(PDF) == "Dropping"
+    assert commands[1][-2:] == ["--psm", "11"]

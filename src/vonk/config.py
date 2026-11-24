@@ -16,6 +16,12 @@ poll fetch those takken too, and the service publishes their events to ``VONK_FE
 without approval. ``TAKKEN`` on the service limits the approve flow (and CalDAV) to the
 family's own takken (the service falls back to the keys of ``CHILD_NAMES``); with neither,
 every scope is proposed as before.
+
+Image-only vonks are read by a vision model (``vonk vision``, role ``vision``) that runs as
+a dispatched batch job next to an Ollama server. ``VONK_VISION_DISPATCH=1`` lets the poll
+dispatch that job through the Nomad task API (``NOMAD_SECRETS_DIR``/``api.sock`` with the
+workload identity in ``NOMAD_TOKEN``); job name and namespace come from ``VONK_VISION_JOB``
+and ``VONK_VISION_NAMESPACE``.
 """
 
 from __future__ import annotations
@@ -29,12 +35,15 @@ from typing import Literal
 
 from vonk.models import Tak
 
-Role = Literal["serve", "poll"]
+Role = Literal["serve", "poll", "vision"]
 
 NO_VALUE = "<no value>"
 
 DEFAULT_DB_PATH = "vonk.db"
 DEFAULT_FEED_BRANCH = "main"
+DEFAULT_VISION_MODEL = "qwen3-vl:4b"
+DEFAULT_VISION_JOB = "vonk-vision"
+DEFAULT_VISION_NAMESPACE = "default"
 
 # Env var names required per role. CHILD_NAMES / TAKKEN count as missing when they parse to
 # an empty or invalid value.
@@ -55,6 +64,11 @@ _REQUIRED: Mapping[Role, tuple[str, ...]] = {
         "VONK_API_TOKEN",
         "VONK_API_URL",
         "TAKKEN",
+    ),
+    "vision": (
+        "VONK_API_TOKEN",
+        "VONK_API_URL",
+        "VONK_VISION_URL",
     ),
 }
 
@@ -160,6 +174,17 @@ class Settings:
     """``owner/repo`` of the GitHub Pages repository that serves the feed."""
     feed_token: str | None = field(default=None, repr=False)
     feed_branch: str = DEFAULT_FEED_BRANCH
+    vonk_vision_url: str | None = None
+    """Base URL of the Ollama server the ``vision`` command talks to (no default)."""
+    vonk_vision_model: str = DEFAULT_VISION_MODEL
+    vonk_vision_model_digest: str | None = None
+    """When set, the model digest Ollama reports must match (pin the exact weights)."""
+    vonk_vision_dispatch: bool = False
+    """``VONK_VISION_DISPATCH=1``: the poll dispatches the vision job for image-only PDFs."""
+    vonk_vision_job: str = DEFAULT_VISION_JOB
+    vonk_vision_namespace: str = DEFAULT_VISION_NAMESPACE
+    nomad_token: str | None = field(default=None, repr=False)
+    nomad_secrets_dir: str | None = None
     errors: tuple[str, ...] = ()
     """Parse errors of structured values (messages never contain the values)."""
 
@@ -190,6 +215,14 @@ class Settings:
             feed_repo=get("VONK_FEED_REPO"),
             feed_token=get("VONK_FEED_TOKEN"),
             feed_branch=get("VONK_FEED_BRANCH") or DEFAULT_FEED_BRANCH,
+            vonk_vision_url=get("VONK_VISION_URL"),
+            vonk_vision_model=get("VONK_VISION_MODEL") or DEFAULT_VISION_MODEL,
+            vonk_vision_model_digest=get("VONK_VISION_MODEL_DIGEST"),
+            vonk_vision_dispatch=get("VONK_VISION_DISPATCH") == "1",
+            vonk_vision_job=get("VONK_VISION_JOB") or DEFAULT_VISION_JOB,
+            vonk_vision_namespace=get("VONK_VISION_NAMESPACE") or DEFAULT_VISION_NAMESPACE,
+            nomad_token=get("NOMAD_TOKEN"),
+            nomad_secrets_dir=get("NOMAD_SECRETS_DIR"),
             errors=tuple(errors),
         )
 

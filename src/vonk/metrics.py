@@ -3,9 +3,14 @@
 The poll heartbeat gauges are persisted in SQLite and exported from there at startup; on
 the very first start they are initialised to the process start time, so a poll job that
 never runs still ages them out (plan "Liveness").
+
+The vision job reports with ``source = "vision"`` into its own heartbeat gauges (0 until it
+first ran), so a vision run never masks a stalled poll.
 """
 
 from __future__ import annotations
+
+import time
 
 from prometheus_client import CollectorRegistry, Counter, Gauge, generate_latest
 from prometheus_client.exposition import CONTENT_TYPE_LATEST
@@ -14,10 +19,13 @@ from vonk.store import (
     FEED_CHANGED_PREFIX,
     FIRST_START,
     LAST_COMPLETED_POLL,
+    LAST_COMPLETED_VISION,
     LAST_NEW_VONK,
     LAST_SUCCESSFUL_POLL,
+    LAST_SUCCESSFUL_VISION,
     Store,
 )
+from vonk.vision import VISION_VERSION
 
 CONTENT_TYPE = CONTENT_TYPE_LATEST
 
@@ -69,6 +77,32 @@ class Metrics:
         self.feed_errors = Counter(
             "vonk_feed_errors", "Failed publishes of the public ICS feed", registry=r
         )
+        self.last_completed_vision = Gauge(
+            "vonk_last_completed_vision_timestamp",
+            "Unix time of the last vision job report (any outcome)",
+            registry=r,
+        )
+        self.last_successful_vision = Gauge(
+            "vonk_last_successful_vision_timestamp",
+            "Unix time of the last vision job report with ok=true",
+            registry=r,
+        )
+        self.vision_pending = Gauge(
+            "vonk_vision_pending",
+            "Image-only PDFs with a dispatched vision job but no transcript yet",
+            registry=r,
+        )
+        self.vision_oldest_pending_age = Gauge(
+            "vonk_vision_oldest_pending_age_seconds",
+            "Seconds since the first dispatch of the oldest pending image-only PDF (0 if none)",
+            registry=r,
+        )
+        self.vision_dispatches = Counter(
+            "vonk_vision_dispatches", "Vision jobs the poll was allowed to dispatch", registry=r
+        )
+        self.vision_errors = Counter(
+            "vonk_vision_errors", "Vision job reports with ok=false", registry=r
+        )
         self.scopes_needing_attention = Gauge(
             "vonk_scopes_needing_attention",
             "Scopes that stopped announcing after repeated conflicts",
@@ -86,13 +120,24 @@ class Metrics:
         for key in _HEARTBEATS:
             value = store.get_meta(key)
             gauges[key].set(first if value is None else value)
+        for key, gauge in (
+            (LAST_COMPLETED_VISION, self.last_completed_vision),
+            (LAST_SUCCESSFUL_VISION, self.last_successful_vision),
+        ):
+            value = store.get_meta(key)
+            if value is not None:
+                gauge.set(value)
         for path, ts in store.meta_with_prefix(FEED_CHANGED_PREFIX).items():
             self.feed_last_change.labels(feed=feed_name(path)).set(ts)
         self.refresh(store)
 
-    def refresh(self, store: Store) -> None:
+    def refresh(self, store: Store, now: float | None = None) -> None:
         """Recompute the DB-derived gauges (cheap; no external calls)."""
         self.pending_changesets.set(store.pending_count())
+        pending = store.vision_pending(VISION_VERSION)
+        self.vision_pending.set(len(pending))
+        now = time.time() if now is None else now
+        self.vision_oldest_pending_age.set(max(0.0, now - pending[0]) if pending else 0)
         self.scopes_needing_attention.set(len(store.scopes_needing_attention()))
 
     def render(self) -> bytes:

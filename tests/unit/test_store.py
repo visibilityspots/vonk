@@ -179,8 +179,10 @@ def test_identity_cache_seen_desired(tmp_path):
     assert not store.is_seen(7)
     store.mark_seen(7, "2026-10-05T20:09:39", "sha", "kabouters:2026-10")
     assert store.seen_posts() == [
-        {"post_id": 7, "modified": "2026-10-05T20:09:39", "pdf_sha256": "sha"}
+        {"post_id": 7, "modified": "2026-10-05T20:09:39", "pdf_sha256": "sha", "ocr": None}
     ]
+    store.mark_seen(7, "2026-10-05T20:09:39", "sha", "kabouters:2026-10", ocr=True)
+    assert store.seen_posts()[0]["ocr"] is True
     assert store.forget_seen_scope("kabouters:2026-10") == 1
     assert store.seen_posts() == []
 
@@ -209,3 +211,46 @@ def test_state_survives_reopen(tmp_path):
     store.set_meta(LAST_COMPLETED_POLL, 42.0)
     store.close()
     assert make(tmp_path).get_meta(LAST_COMPLETED_POLL) == 42.0
+
+
+def test_transcripts_and_vision_dispatches(tmp_path):
+    now = [1000.0]
+    store = Store(str(tmp_path / "vonk.db"), clock=lambda: now[0])
+    assert store.get_transcript("sha", "v1") is None
+    store.put_transcript("sha", "v1", "Zondag 8 november")
+    assert store.get_transcript("sha", "v1") == "Zondag 8 november"
+    assert store.get_transcript("sha", "v2") is None
+
+    assert store.record_dispatch("a", 1, 100) is True
+    now[0] += 50
+    assert store.record_dispatch("a", 1, 100) is False
+    assert store.record_dispatch("b", 2, 100) is True
+    assert store.vision_pending("v1") == [1000.0, 1050.0]
+    now[0] += 60
+    assert store.record_dispatch("a", 1, 100) is True
+    assert store.vision_pending("v1") == [1000.0, 1050.0]  # first dispatch time is kept
+    store.put_transcript("a", "v1", "text")
+    assert store.vision_pending("v1") == [1050.0]
+    assert store.vision_pending("v2") == [1000.0, 1050.0]
+
+
+def test_old_seen_table_gets_the_ocr_column(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "vonk.db")
+    conn = sqlite3.connect(path)
+    conn.execute(
+        "CREATE TABLE seen (post_id INTEGER PRIMARY KEY, modified TEXT NOT NULL,"
+        " pdf_sha256 TEXT NOT NULL, scope_key TEXT NOT NULL, updated_at REAL NOT NULL)"
+    )
+    conn.execute("INSERT INTO seen VALUES (7, 'm', 'sha', 'kabouters:2026-10', 1.0)")
+    conn.commit()
+    conn.close()
+    store = Store(path)
+    assert store.seen_posts() == [
+        {"post_id": 7, "modified": "m", "pdf_sha256": "sha", "ocr": None}
+    ]
+    store.mark_seen(7, "m", "sha", "kabouters:2026-10", ocr=False)
+    assert store.seen_posts()[0]["ocr"] is False
+    store.close()
+    assert Store(path).seen_posts()[0]["ocr"] is False  # reopening migrates nothing twice
