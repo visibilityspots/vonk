@@ -20,6 +20,7 @@ from vonk.pdf import PdfText
 from vonk.poll import PollOptions, run_poll
 from vonk.sinks.caldav_sink import to_ics
 from vonk.store import LAST_COMPLETED_POLL, LAST_NEW_VONK, LAST_SUCCESSFUL_POLL
+from vonk.vision import VISION_VERSION as VV
 
 URL = "https://scoutstervant.be/x.pdf"
 SCOPE = "kabouters:2026-10"
@@ -57,9 +58,10 @@ ROUTES = [
     ("POST", "/api/poll-report", {"ok": True, "errors": [], "warnings": ["w"]}),
     ("GET", f"/api/transcripts/{SHA}/v1", None),
     ("PUT", f"/api/transcripts/{SHA}/v1", {"text": "Zondag 8 november Kampmenu"}),
-    ("GET", f"/api/vision-dispatch/{SHA}", None),
+    ("GET", f"/api/vision-dispatch/{SHA}?vision_version=v1", None),
     ("POST", "/api/vision-dispatch", {"pdf_sha256": SHA, "post_id": 2736, "ok": True}),
-    ("POST", "/api/vision-failures", {"pdf_sha256": SHA, "reason": "boom", "engine": "ollama"}),
+    ("POST", "/api/vision-failures",
+     {"pdf_sha256": SHA, "vision_version": "v1", "reason": "boom", "engine": "ollama"}),
 ]
 
 
@@ -410,15 +412,22 @@ def test_transcript_put_and_get(world):
     path = f"/api/transcripts/{SHA}/v1"
     assert world.client.get(path, headers=world.auth).status_code == 404
     resp = world.client.put(path, json={"text": "Zondag 8 november Kampmenu"}, headers=world.auth)
-    assert resp.status_code == 200
+    assert resp.status_code == 200 and resp.json() == {"stored": True}
     assert world.client.get(path, headers=world.auth).json() == {
         "text": "Zondag 8 november Kampmenu", "engine": "ollama"
     }
+    # the first transcript wins: a later one (here from the Claude fallback) is not stored
     resp = world.client.put(path, json={"text": "Zondag 8 november", "engine": "claude"},
                             headers=world.auth)  # fmt: skip
-    assert resp.status_code == 200
-    assert world.client.get(path, headers=world.auth).json()["engine"] == "claude"
+    assert resp.status_code == 200 and resp.json() == {"stored": False}
+    assert world.client.get(path, headers=world.auth).json() == {
+        "text": "Zondag 8 november Kampmenu", "engine": "ollama"
+    }
     assert metric(world, 'vonk_vision_fallbacks_total{result="ok"}') == 1
+    other = f"/api/transcripts/{'c' * 64}/v1"
+    resp = world.client.put(other, json={"text": "x", "engine": "claude"}, headers=world.auth)
+    assert resp.json() == {"stored": True}
+    assert world.client.get(other, headers=world.auth).json()["engine"] == "claude"
     resp = world.client.put(path, json={"text": "x", "engine": "gpt"}, headers=world.auth)
     assert resp.status_code == 400
     assert world.client.get(f"/api/transcripts/{SHA}/v2", headers=world.auth).status_code == 404
@@ -436,14 +445,16 @@ def test_transcript_put_validation(world, sha, payload):
 
 
 def allowed(w, sha=SHA) -> bool:
-    resp = w.client.get(f"/api/vision-dispatch/{sha}", headers=w.auth)
+    resp = w.client.get(f"/api/vision-dispatch/{sha}", params={"vision_version": VV},
+                        headers=w.auth)  # fmt: skip
     assert resp.status_code == 200
     return resp.json()["dispatch"]
 
 
 def dispatch(w, sha=SHA, post_id=2736, ok=True):
     body = {"pdf_sha256": sha, "post_id": post_id, "ok": ok,
-            "modified": "2026-11-02T09:00:00", "scope_key": "jeevees:2026-11"}  # fmt: skip
+            "modified": "2026-11-02T09:00:00", "scope_key": "jeevees:2026-11",
+            "vision_version": VV}  # fmt: skip
     resp = w.client.post("/api/vision-dispatch", json=body, headers=w.auth)
     assert resp.status_code == 200
     return resp
@@ -498,7 +509,11 @@ def test_vision_dispatch_validation(world):
         assert resp.status_code == 400
     assert world.store.vision_pending("v1") == []
     assert world.store.seen_posts() == []
-    assert world.client.get("/api/vision-dispatch/x", headers=world.auth).status_code == 400
+    assert world.client.get("/api/vision-dispatch/x", params={"vision_version": VV},
+                            headers=world.auth).status_code == 400  # fmt: skip
+    assert world.client.get(f"/api/vision-dispatch/{SHA}", headers=world.auth).status_code == 400
+    assert world.client.get(f"/api/vision-dispatch/{SHA}", params={"vision_version": "a b"},
+                            headers=world.auth).status_code == 400  # fmt: skip
 
 
 @pytest.mark.parametrize("version", ["a" * 33, "v1_2", "v%201", "v1;x"])
@@ -599,37 +614,82 @@ def test_seen_rows_from_before_the_ocr_flag_are_reprocessed_once_without_any_eff
     assert world.store.desired_all() == reposted  # nothing re-posted (updated_at unchanged)
 
 
-def fail(w, sha=SHA, reason="Ollama /api/chat: HTTP 500", engine="ollama"):
-    body = {"pdf_sha256": sha, "reason": reason, "engine": engine}
+def fail(w, sha=SHA, reason="Ollama /api/chat: HTTP 500", engine="ollama", version=None,
+         post=None):  # fmt: skip
+    body = {"pdf_sha256": sha, "vision_version": version or VV, "reason": reason,
+            "engine": engine}  # fmt: skip
+    if post is not None:
+        body["post"] = post
     return w.client.post("/api/vision-failures", json=body, headers=w.auth)
 
 
+def status_of(w, sha=SHA, version=None) -> dict:
+    resp = w.client.get(f"/api/vision-dispatch/{sha}", params={"vision_version": version or VV},
+                        headers=w.auth)  # fmt: skip
+    assert resp.status_code == 200
+    return resp.json()
+
+
 def test_vision_failures_show_up_in_the_dispatch_status(world):
-    status = world.client.get(f"/api/vision-dispatch/{SHA}", headers=world.auth).json()
-    assert status == {"dispatch": True, "dispatched_at": None, "dispatch_age": None,
-                      "failed_at": None, "failure": None}  # fmt: skip
+    assert status_of(world) == {
+        "dispatch": True, "dispatched_at": None, "dispatch_age": None, "failed_at": None,
+        "failure": None, "fallback_failed_at": None, "fallback_age": None,
+        "fallback_attempts": 0,
+    }  # fmt: skip
     dispatch(world)
     world.clock.now += 600
-    assert fail(world).status_code == 200
+    assert fail(world).json() == {"attempts": 1}
     world.clock.now += 60
-    status = world.client.get(f"/api/vision-dispatch/{SHA}", headers=world.auth).json()
+    status = status_of(world)
     assert status["dispatch"] is False
     assert status["dispatched_at"] == world.clock.now - 660
     assert status["dispatch_age"] == 660
     assert status["failed_at"] == world.clock.now - 60
     assert status["failure"] == "Ollama /api/chat: HTTP 500"
     assert metric(world, 'vonk_vision_fallbacks_total{result="error"}') == 0
-    assert fail(world, engine="claude").status_code == 200
-    assert metric(world, 'vonk_vision_fallbacks_total{result="error"}') == 1
+    assert fail(world, engine="claude").json() == {"attempts": 1}
+    world.clock.now += 30
+    assert fail(world, engine="claude").json() == {"attempts": 2}
+    assert metric(world, 'vonk_vision_fallbacks_total{result="error"}') == 2
+    status = status_of(world)
+    assert (status["fallback_attempts"], status["fallback_age"]) == (2, 0)
+    assert status["failure"] == "Ollama /api/chat: HTTP 500"  # engines are counted apart
+
+
+def test_failures_of_another_vision_version_are_ignored(world):
+    fail(world, version="1999-01-01.1")
+    fail(world, version="1999-01-01.1", engine="claude")
+    status = status_of(world)
+    assert status["failed_at"] is None and status["fallback_attempts"] == 0
+    assert status_of(world, version="1999-01-01.1")["fallback_attempts"] == 1
+
+
+def test_dispatch_age_counts_from_the_first_dispatch_of_the_version(world):
+    dispatch(world)
+    world.clock.now += 13 * 3600
+    dispatch(world)  # a re-dispatch after the 12 h window does not reset the age
+    assert status_of(world)["dispatch_age"] == 13 * 3600
+    assert status_of(world, version="1999-01-01.1")["dispatch_age"] is None
+
+
+def test_claude_failure_with_post_marks_it_seen_as_image_only(world):
+    post = {"id": 2736, "modified": "2026-11-02T09:00:00", "scope_key": "jeevees:2026-11"}
+    assert fail(world, engine="claude", post=post).status_code == 200
+    assert world.store.seen_posts() == [{"post_id": 2736, "modified": "2026-11-02T09:00:00",
+                                         "pdf_sha256": SHA, "ocr": True}]  # fmt: skip
+    assert fail(world, engine="claude", post={"id": 1}).status_code == 400
 
 
 @pytest.mark.parametrize(
     "payload",
-    [{"reason": "x", "engine": "ollama"}, {"pdf_sha256": "x", "reason": "x", "engine": "ollama"},
-     {"pdf_sha256": SHA, "reason": " ", "engine": "ollama"},
-     {"pdf_sha256": SHA, "reason": "x", "engine": "gpt"}, ["x"]],
+    [{"vision_version": "v1", "reason": "x", "engine": "ollama"},
+     {"pdf_sha256": "x", "vision_version": "v1", "reason": "x", "engine": "ollama"},
+     {"pdf_sha256": SHA, "reason": "x", "engine": "ollama"},
+     {"pdf_sha256": SHA, "vision_version": "v 1", "reason": "x", "engine": "ollama"},
+     {"pdf_sha256": SHA, "vision_version": "v1", "reason": " ", "engine": "ollama"},
+     {"pdf_sha256": SHA, "vision_version": "v1", "reason": "x", "engine": "gpt"}, ["x"]],
 )  # fmt: skip
 def test_vision_failure_validation(world, payload):
     resp = world.client.post("/api/vision-failures", json=payload, headers=world.auth)
     assert resp.status_code == 400
-    assert world.store.vision_status(SHA)["failed_at"] is None
+    assert world.store.vision_status(SHA, "v1")["failed_at"] is None

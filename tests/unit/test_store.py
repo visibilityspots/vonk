@@ -217,11 +217,13 @@ def test_transcripts_and_vision_dispatches(tmp_path):
     now = [1000.0]
     store = Store(str(tmp_path / "vonk.db"), clock=lambda: now[0])
     assert store.get_transcript("sha", "v1") is None
-    store.put_transcript("sha", "v1", "Zondag 8 november")
+    assert store.put_transcript("sha", "v1", "Zondag 8 november") is True
     assert store.get_transcript("sha", "v1") == {"text": "Zondag 8 november", "engine": "ollama"}
-    store.put_transcript("sha", "v1", "Zondag 8 november", engine="claude")
-    assert store.get_transcript("sha", "v1")["engine"] == "claude"
-    assert store.get_transcript("sha", "v2") is None
+    # the first transcript wins
+    assert store.put_transcript("sha", "v1", "Zondag 9 november", engine="claude") is False
+    assert store.get_transcript("sha", "v1") == {"text": "Zondag 8 november", "engine": "ollama"}
+    assert store.put_transcript("sha", "v2", "Zondag 9 november", engine="claude") is True
+    assert store.get_transcript("sha", "v3") is None
 
     assert store.dispatch_allowed("a", 100) is True
     store.record_dispatch("a", 1)
@@ -265,18 +267,43 @@ def test_old_seen_table_gets_the_ocr_column(tmp_path):
 def test_vision_failures_and_status(tmp_path):
     now = [1000.0]
     store = Store(str(tmp_path / "vonk.db"), clock=lambda: now[0])
-    assert store.vision_status("a") == {"dispatched_at": None, "failed_at": None,
-                                        "failure": None, "failure_engine": None}  # fmt: skip
-    store.record_dispatch("a", 1)
+    assert store.vision_status("a", "v1") == {
+        "dispatched_at": None, "first_dispatched_at": None, "failed_at": None,
+        "failure": None, "fallback_failed_at": None, "fallback_failure": None,
+        "fallback_attempts": 0,
+    }  # fmt: skip
+    store.record_dispatch("a", 1, "v1")
     now[0] += 10
-    store.record_vision_failure("a", "x" * 500, "ollama")
-    status = store.vision_status("a")
+    assert store.record_vision_failure("a", "v1", "x" * 500, "ollama") == 1
+    status = store.vision_status("a", "v1")
     assert status["dispatched_at"] == 1000.0 and status["failed_at"] == 1010.0
-    assert status["failure"] == "x" * 300 and status["failure_engine"] == "ollama"
+    assert status["failure"] == "x" * 300 and status["fallback_attempts"] == 0
     now[0] += 10
-    store.record_vision_failure("a", "Claude stopped", "claude")  # the latest one is kept
-    assert store.vision_status("a")["failure_engine"] == "claude"
-    assert store.vision_status("a")["failed_at"] == 1020.0
+    assert store.record_vision_failure("a", "v1", "Claude stopped", "claude") == 1
+    now[0] += 10
+    assert store.record_vision_failure("a", "v1", "Claude refused", "claude") == 2
+    status = store.vision_status("a", "v1")
+    assert status["failed_at"] == 1010.0  # the vision job's failure is kept apart
+    assert (status["fallback_failed_at"], status["fallback_failure"],
+            status["fallback_attempts"]) == (1030.0, "Claude refused", 2)  # fmt: skip
+    # another vision version: its own rows
+    assert store.vision_status("a", "v2")["failed_at"] is None
+    assert store.vision_status("a", "v2")["fallback_attempts"] == 0
+
+
+def test_first_dispatch_time_is_kept_per_vision_version(tmp_path):
+    now = [1000.0]
+    store = Store(str(tmp_path / "vonk.db"), clock=lambda: now[0])
+    store.record_dispatch("a", 1, "v1")
+    now[0] += 50_000
+    store.record_dispatch("a", 1, "v1")  # re-dispatch: the first time stays
+    status = store.vision_status("a", "v1")
+    assert (status["first_dispatched_at"], status["dispatched_at"]) == (1000.0, 51_000.0)
+    assert store.vision_status("a", "v2")["first_dispatched_at"] is None
+    now[0] += 10
+    store.record_dispatch("a", 1, "v2")  # a new vision version starts over
+    assert store.vision_status("a", "v2")["first_dispatched_at"] == 51_010.0
+    assert store.vision_status("a", "v1")["first_dispatched_at"] is None
 
 
 def test_old_transcripts_table_gets_the_engine_column(tmp_path):
@@ -295,3 +322,23 @@ def test_old_transcripts_table_gets_the_engine_column(tmp_path):
     assert store.get_transcript("a", "v1") == {"text": "Zondag 8 november", "engine": "ollama"}
     store.put_transcript("b", "v1", "t", engine="claude")
     assert store.get_transcript("b", "v1") == {"text": "t", "engine": "claude"}
+
+
+def test_old_vision_dispatches_table_gets_the_version_column(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "vonk.db")
+    conn = sqlite3.connect(path)
+    conn.execute(
+        "CREATE TABLE vision_dispatches (pdf_sha256 TEXT PRIMARY KEY, post_id INTEGER NOT NULL,"
+        " first_dispatched_at REAL NOT NULL, dispatched_at REAL NOT NULL)"
+    )
+    conn.execute("INSERT INTO vision_dispatches VALUES ('a', 1, 5.0, 6.0)")
+    conn.commit()
+    conn.close()
+    store = Store(path, clock=lambda: 100.0)
+    # a row from before the column: no first dispatch of any known version
+    assert store.vision_status("a", "v1")["first_dispatched_at"] is None
+    assert store.vision_status("a", "v1")["dispatched_at"] == 6.0
+    store.record_dispatch("a", 1, "v1")
+    assert store.vision_status("a", "v1")["first_dispatched_at"] == 100.0

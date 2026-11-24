@@ -11,7 +11,9 @@ once per 12 hours per PDF) and leaves the post pending, so a later poll picks th
 up. When that job failed for the PDF, produced nothing within ``VONK_VISION_FALLBACK_AFTER``
 hours, or dispatch is not configured, the poll reads the poster itself with Claude (two
 renders, the same digit rule), stores that transcript with engine ``claude`` and goes on in
-the same run. Such extractions are cached under ``VISION_PROMPT_VERSION``.
+the same run. A failed Claude read is retried after ``VONK_VISION_RETRY_AFTER`` hours, at
+most ``VONK_VISION_MAX_FALLBACKS`` times; meanwhile the post is not downloaded again.
+Such extractions are cached under ``VISION_PROMPT_VERSION``.
 """
 
 from __future__ import annotations
@@ -47,6 +49,7 @@ from vonk.ingest import (
 from vonk.models import Event, ExtractedSpan, Scope, VonkKind, VonkPost
 from vonk.pdf import EmptyPdfError, PdfError, PdfText, fetch_text, render_pages
 from vonk.vision import (
+    CLAUDE_MAX_EDGE,
     ENGINE_CLAUDE,
     RENDER_DPI,
     VISION_VERSION,
@@ -154,17 +157,23 @@ class ServiceClient:
 
     def put_transcript(
         self, sha256: str, vision_version: str, text: str, engine: str = "ollama"
-    ) -> None:
+    ) -> bool:
+        """Store a transcript; False when one was stored before (the first one wins)."""
         path = f"/api/transcripts/{sha256}/{vision_version}"
         resp = self._request("PUT", path, json={"text": text, "engine": engine})
         if not resp.is_success:
             raise self._fail("PUT", path, resp)
+        try:
+            return bool(resp.json()["stored"])
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ServiceError(f"PUT {path}: malformed body: {exc}") from exc
 
-    def vision_status(self, sha256: str) -> dict[str, Any]:
+    def vision_status(self, sha256: str, vision_version: str) -> dict[str, Any]:
         """``dispatch`` (False while a successful dispatch is recent), ``dispatch_age``
-        (seconds, None without a dispatch), ``dispatched_at`` and ``failed_at``."""
+        (seconds since the first dispatch of this version), ``dispatched_at``,
+        ``failed_at`` (vision job) and ``fallback_age`` / ``fallback_attempts`` (Claude)."""
         path = f"/api/vision-dispatch/{sha256}"
-        resp = self._request("GET", path)
+        resp = self._request("GET", path, params={"vision_version": vision_version})
         if not resp.is_success:
             raise self._fail("GET", path, resp)
         try:
@@ -174,9 +183,20 @@ class ServiceClient:
         except (ValueError, KeyError, TypeError) as exc:
             raise ServiceError(f"GET {path}: malformed body: {exc}") from exc
 
-    def vision_failure(self, sha256: str, reason: str, engine: str) -> None:
-        """Record a failed vision transcription of the PDF."""
-        body = {"pdf_sha256": sha256, "reason": reason, "engine": engine}
+    def vision_failure(
+        self,
+        sha256: str,
+        vision_version: str,
+        reason: str,
+        engine: str,
+        post: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Record a failed vision transcription of the PDF; ``post`` (``{id, modified,
+        scope_key}``) also marks the post seen as image-only."""
+        body: dict[str, Any] = {"pdf_sha256": sha256, "vision_version": vision_version,
+                                "reason": reason, "engine": engine}  # fmt: skip
+        if post is not None:
+            body["post"] = dict(post)
         resp = self._request("POST", "/api/vision-failures", json=body)
         if not resp.is_success:
             raise self._fail("POST", "/api/vision-failures", resp)
@@ -188,7 +208,8 @@ class ServiceClient:
         marks the post seen as image-only, which needs ``modified`` and ``scope_key``)."""
         body: dict[str, Any] = {"pdf_sha256": sha256, "post_id": post_id, "ok": ok}
         if ok:
-            body |= {"modified": modified, "scope_key": scope_key}
+            body |= {"modified": modified, "scope_key": scope_key,
+                     "vision_version": VISION_VERSION}  # fmt: skip
         resp = self._request("POST", "/api/vision-dispatch", json=body)
         if not resp.is_success:
             raise self._fail("POST", "/api/vision-dispatch", resp)
@@ -314,8 +335,9 @@ class PollRun:
 
     def fallback_due(self, status: Mapping[str, Any]) -> bool:
         """True when the poll should read the poster itself with Claude: dispatch is not
-        configured, the vision job failed for this PDF after its latest dispatch, or that
-        dispatch is older than ``VONK_VISION_FALLBACK_AFTER`` hours without a transcript."""
+        configured, the vision job failed for this PDF (this vision version) after its latest
+        dispatch, or the first dispatch of this version is older than
+        ``VONK_VISION_FALLBACK_AFTER`` hours without a transcript."""
         if self.settings.anthropic_api_key is None:
             return False
         if not self.settings.vonk_vision_dispatch:
@@ -326,34 +348,66 @@ class PollRun:
         age = status.get("dispatch_age")
         return age is not None and age >= self.settings.vonk_vision_fallback_after * 3600
 
-    def _vision_status(self, sha256: str) -> dict[str, Any]:
+    def vision_action(self, status: Mapping[str, Any]) -> str:
+        """What to do for an image-only PDF without transcript: ``claude`` (read it now),
+        ``backoff`` (a Claude attempt failed less than ``VONK_VISION_RETRY_AFTER`` hours
+        ago), ``exhausted`` (``VONK_VISION_MAX_FALLBACKS`` attempts failed), ``dispatch``,
+        ``wait`` (a dispatch is in its window) or ``skip`` (no way to read it)."""
+        if self.fallback_due(status):
+            attempts = status.get("fallback_attempts") or 0
+            if attempts >= self.settings.vonk_vision_max_fallbacks:
+                return "exhausted"
+            age = status.get("fallback_age")
+            if age is not None and age < self.settings.vonk_vision_retry_after * 3600:
+                return "backoff"
+            return "claude"
         if not self.settings.vonk_vision_dispatch:
-            return {}
-        return self.service.vision_status(sha256)
+            return "skip"
+        return "dispatch" if status.get("dispatch") else "wait"
 
-    def claude_transcript(self, item: IngestedPost, pdf: PdfText) -> str | None:
-        """Read the poster with Claude: a colour and a greyscale render of every page must
-        agree on the digits. Stores the transcript (engine ``claude``) and returns it; on
-        failure records it, warns and returns None (the post stays pending)."""
+    def _exhausted(self, item: IngestedPost, status: Mapping[str, Any]) -> None:
+        label = f"{item.scope.key} (post {item.post.id})"
+        msg = (f"{label}: Claude vision fallback gave up after "
+               f"{status.get('fallback_attempts')} attempts; the post stays pending")  # fmt: skip
+        self.warnings.append(msg)
+        log.warning("%s", msg)
+
+    def claude_transcript(self, item: IngestedPost, pdf: PdfText) -> tuple[str, str] | None:
+        """Read the poster with Claude: a colour and a greyscale render of every page (long
+        edge at most ``CLAUDE_MAX_EDGE``) must agree on the digits. Stores the transcript
+        (engine ``claude``) and returns it with its engine (an earlier stored transcript
+        wins). On failure records it, warns and returns None (the post stays pending); a
+        service error is a run error for this post only."""
         label = f"{item.scope.key} (post {item.post.id})"
         log.info("%s: transcribing the image-only PDF with Claude", label)
         try:
-            pages = self.render(pdf.data, dpi=RENDER_DPI)
-            gray = self.render(pdf.data, dpi=RENDER_DPI, gray=True)
+            pages = self.render(pdf.data, dpi=RENDER_DPI, max_edge=CLAUDE_MAX_EDGE)
+            gray = self.render(pdf.data, dpi=RENDER_DPI, gray=True, max_edge=CLAUDE_MAX_EDGE)
             client = self.vision_client()
             text = transcribe(pages, gray, lambda png: claude_read_page(client, png))
         except (PdfError, VisionError) as exc:
             reason = f"Claude vision fallback failed: {exc}"
             self.warnings.append(f"{label}: {reason}")
             log.warning("%s: %s", label, reason)
+            post = {"id": item.post.id, "modified": item.post.modified.isoformat(),
+                    "scope_key": item.scope.key}  # fmt: skip
             try:
-                self.service.vision_failure(pdf.sha256, reason, ENGINE_CLAUDE)
+                self.service.vision_failure(pdf.sha256, VISION_VERSION, reason, ENGINE_CLAUDE,
+                                            post)  # fmt: skip
             except ServiceError as err:
-                log.error("%s: vision failure not recorded: %s", label, err)
+                self.errors.append(f"{label}: Claude fallback failure not recorded: {err}")
+                log.error("%s: Claude fallback failure not recorded: %s", label, err)
             return None
-        self.service.put_transcript(pdf.sha256, VISION_VERSION, text, ENGINE_CLAUDE)
-        log.info("%s: stored the Claude transcript (%d chars)", label, len(text))
-        return text
+        try:
+            if self.service.put_transcript(pdf.sha256, VISION_VERSION, text, ENGINE_CLAUDE):
+                log.info("%s: stored the Claude transcript (%d chars)", label, len(text))
+                return text, ENGINE_CLAUDE
+            log.info("%s: a transcript was stored meanwhile; using that one", label)
+            return self.service.transcript(pdf.sha256, VISION_VERSION) or (text, ENGINE_CLAUDE)
+        except ServiceError as err:
+            self.errors.append(f"{label}: Claude transcript not stored: {err}")
+            log.error("%s: Claude transcript not stored: %s", label, err)
+            return None
 
     def vision_client(self) -> Any:
         if self._vision_client is None:
@@ -372,7 +426,7 @@ class PollRun:
             self.warnings.append(f"{label}: image-only PDF skipped (vision dispatch disabled)")
             log.warning("%s: image-only PDF skipped (vision dispatch disabled)", label)
             return
-        if not status["dispatch"]:
+        if not status.get("dispatch"):
             log.info("%s: vision job dispatched recently; waiting for its transcript", label)
             return
         try:
@@ -401,25 +455,30 @@ class PollRun:
                 log.error("%s: failed dispatch not reported: %s", label, exc)
 
     def vision_pending(self, seen: Seen | None, item: Any) -> bool:
-        """True for an unchanged image-only post that waits for its transcript while its
-        vision job is in the 12 hour window and no Claude fallback is due: no download, no
-        OCR, no dispatch."""
+        """True for an unchanged image-only post that waits for its transcript: its vision
+        job is in the 12 hour window, a failed Claude fallback is in its backoff, or the
+        fallback attempts are used up. No download, no OCR, no dispatch, no Claude call."""
         if (
             seen is None
             or seen[0] != item.post.modified
             or not seen[1]
             or seen[2] is not True
-            or not self.settings.vonk_vision_dispatch
+            or not self.vision_enabled
         ):
             return False
         sha = seen[1]
         if self.service.transcript(sha, VISION_VERSION) is not None:
             return False
-        status = self.service.vision_status(sha)
-        if status["dispatch"] or self.fallback_due(status):
-            return False
-        log.info("%s (post %s): waiting for the vision transcript", item.scope.key, item.post.id)
-        return True
+        status = self.service.vision_status(sha, VISION_VERSION)
+        action = self.vision_action(status)
+        if action == "exhausted":
+            self._exhausted(item, status)
+            return True
+        if action in ("wait", "backoff"):
+            log.info("%s (post %s): waiting for the vision transcript (%s)",
+                     item.scope.key, item.post.id, action)  # fmt: skip
+            return True
+        return False
 
     def process(self, item: IngestedPost) -> None:
         post, scope = item.post, item.scope
@@ -435,14 +494,20 @@ class PollRun:
         if pdf.ocr:
             stored = self.service.transcript(pdf.sha256, VISION_VERSION)
             if stored is None:
-                status = self._vision_status(pdf.sha256)
-                if not self.fallback_due(status):
+                status = self.service.vision_status(pdf.sha256, VISION_VERSION)
+                action = self.vision_action(status)
+                if action == "exhausted":
+                    self._exhausted(item, status)
+                    return
+                if action == "backoff":
+                    log.info("%s: Claude fallback failed recently; waiting", scope.key)
+                    return
+                if action != "claude":
                     self.request_vision(item, pdf, status)
                     return
-                claude_text = self.claude_transcript(item, pdf)
-                if claude_text is None:
+                stored = self.claude_transcript(item, pdf)
+                if stored is None:
                     return
-                stored = (claude_text, ENGINE_CLAUDE)
             (text, engine), version = stored, VISION_PROMPT_VERSION
         else:
             text, version = pdf.text, PROMPT_VERSION

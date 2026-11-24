@@ -44,13 +44,15 @@ class FakeWorld:
 
     def __init__(self, *, seen=(), cache=None, service_status=None, service_down=False,
                  posts=POSTS, transcripts=None, dispatch_allowed=True,
-                 dispatch_record_status=200, vision_status=None):  # fmt: skip
+                 dispatch_record_status=200, vision_status=None,
+                 put_transcript_status=200):  # fmt: skip
         self.seen = list(seen)
         self.cache = cache or {}
         self.transcripts = transcripts or {}
         self.dispatch_allowed = dispatch_allowed
         self.dispatch_record_status = dispatch_record_status
         self.vision_status = vision_status or {}
+        self.put_transcript_status = put_transcript_status
         self.transcript_puts: list[tuple[str, str, dict]] = []
         self.failures: list[dict] = []
         self.dispatch_checks: list[str] = []
@@ -89,11 +91,15 @@ class FakeWorld:
             if request.method == "PUT":
                 body = json.loads(request.content)
                 self.transcript_puts.append((sha, version, body))
-                self.transcripts[(sha, version)] = body["text"]
-                return httpx.Response(200, json={})
+                if self.put_transcript_status != 200:
+                    return httpx.Response(self.put_transcript_status)
+                stored = (sha, version) not in self.transcripts
+                self.transcripts.setdefault((sha, version), body["text"])
+                return httpx.Response(200, json={"stored": stored})
             text = self.transcripts.get((sha, version))
             return httpx.Response(404) if text is None else httpx.Response(200, json={"text": text})
         if path.startswith("/api/vision-dispatch/"):
+            assert request.url.params["vision_version"] == VISION_VERSION
             self.dispatch_checks.append(path.split("/")[3])
             return httpx.Response(200, json={"dispatch": self.dispatch_allowed,
                                              **self.vision_status})  # fmt: skip
@@ -154,7 +160,12 @@ class Claude:
         return type("Response", (), {"content": [block], "stop_reason": self.stop})()
 
 
-def fake_render(data: bytes, *, dpi: int, gray: bool = False) -> list[bytes]:
+RENDERS: list[dict] = []
+
+
+def fake_render(data: bytes, *, dpi: int, gray: bool = False,
+                max_edge: int | None = None) -> list[bytes]:  # fmt: skip
+    RENDERS.append({"dpi": dpi, "gray": gray, "max_edge": max_edge})
     return [f"{data.decode()}@{dpi}{'-gray' if gray else ''}".encode()]
 
 
@@ -525,7 +536,8 @@ def test_image_only_pdf_without_transcript_dispatches_the_vision_job():
     # recorded only after the dispatch succeeded
     assert world.dispatch_requests == [
         {"pdf_sha256": IMAGE["sha256"], "post_id": 2647, "ok": True,
-         "modified": "2026-09-22T19:30:51+02:00", "scope_key": "jeevees:2026-10"}
+         "modified": "2026-09-22T19:30:51+02:00", "scope_key": "jeevees:2026-10",
+         "vision_version": VISION_VERSION}
     ]  # fmt: skip
     assert "jeevees:2026-10" not in world.desired  # not posted, so not seen either
     assert "jeevees-2026-10" not in extractor.calls  # OCR text is never extracted from
@@ -549,7 +561,7 @@ def test_without_dispatch_the_poll_reads_the_poster_with_claude():
     assert run(world, fetch=image_fetch, dispatch=dispatcher, claude=claude,
                extractor=extractor) == 0  # fmt: skip
     assert dispatcher.calls == [] and world.dispatch_requests == []
-    assert world.dispatch_checks == []  # no dispatch configured: no status needed
+    assert world.dispatch_checks == [IMAGE["sha256"]]  # Claude attempts live in the status
     assert claude.images == [COLOUR, GRAY]  # colour and greyscale, both at 150 dpi
     assert world.transcript_puts == [
         (IMAGE["sha256"], VISION_VERSION, {"text": IMAGE_TEXT.strip(), "engine": "claude"})
@@ -822,6 +834,9 @@ def test_claude_digit_mismatch_stores_nothing_and_leaves_the_post_pending():
     assert world.transcript_puts == [] and "jeevees:2026-10" not in world.desired
     (failure,) = world.failures
     assert failure["engine"] == "claude" and failure["pdf_sha256"] == IMAGE["sha256"]
+    assert failure["vision_version"] == VISION_VERSION
+    assert failure["post"] == {"id": 2647, "modified": "2026-09-22T19:30:51+02:00",
+                               "scope_key": "jeevees:2026-10"}  # fmt: skip
     assert "two runs disagree" in failure["reason"]
     assert any("jeevees:2026-10 (post 2647): Claude vision fallback failed: page 1: two runs"
                in w for w in world.reports[0]["warnings"])  # fmt: skip
@@ -837,7 +852,7 @@ def test_claude_refusal_stores_nothing_and_leaves_the_post_pending():
     assert any("stop_reason='refusal'" in w for w in world.reports[0]["warnings"])
 
 
-def test_unrecorded_claude_failure_still_only_warns(caplog):
+def test_unrecorded_claude_failure_is_a_run_error_for_that_post_only(caplog):
     world = FakeWorld()
     original = world.handler
 
@@ -849,8 +864,11 @@ def test_unrecorded_claude_failure_still_only_warns(caplog):
 
     world.handler = handler
     code, _, _ = _fallback(world, env=ENV, claude=Claude({COLOUR: "8", GRAY: "9"}))
-    assert code == 0
-    assert "vision failure not recorded" in caplog.text
+    assert code == 1
+    assert "Claude fallback failure not recorded" in caplog.text
+    (error,) = world.reports[0]["errors"]
+    assert error.startswith("jeevees:2026-10 (post 2647): Claude fallback failure not recorded")
+    assert set(world.desired) == {"groep:2026-2027", "kabouters:2026-10"}  # others go on
 
 
 def test_pending_post_is_downloaded_again_once_a_fallback_is_due():
@@ -876,3 +894,111 @@ def test_invalid_fallback_window_is_a_settings_error():
     assert Settings.from_env({**ENV, "VONK_VISION_FALLBACK_AFTER": "0"}).errors
     assert Settings.from_env({**ENV, "VONK_VISION_FALLBACK_AFTER": "1.5"}
                              ).vonk_vision_fallback_after == 1.5  # fmt: skip
+
+
+# --- Claude fallback: backoff, cap, service errors, first transcript wins ----------------
+
+
+def _counting_fetch():
+    fetched = []
+
+    def fetch(url):
+        fetched.append(url)
+        return image_fetch(url)
+
+    return fetch, fetched
+
+
+def test_failed_claude_fallback_backs_off_on_the_next_poll_without_a_download():
+    fetch, fetched = _counting_fetch()
+    seen = _seen_image(True)  # the failure marked the post seen as image-only
+    status = {"fallback_failed_at": 1.0, "fallback_age": 6 * HOUR, "fallback_attempts": 1}
+    world = FakeWorld(seen=seen, cache=_cache_all(PROMPT_VERSION), vision_status=status)
+    claude = Claude({COLOUR: IMAGE_TEXT, GRAY: IMAGE_TEXT})
+    assert run(world, fetch=fetch, claude=claude) == 0
+    assert IMAGE["url"] not in fetched and claude.images == []
+    assert world.reports[0]["warnings"] == [] and world.reports[0]["errors"] == []
+
+    # after VONK_VISION_RETRY_AFTER (default 24 h) it is downloaded and read again
+    world = FakeWorld(seen=seen, cache=_cache_all(PROMPT_VERSION),
+                      vision_status={**status, "fallback_age": 24 * HOUR})  # fmt: skip
+    assert run(world, fetch=fetch, claude=claude) == 0
+    assert fetched == [IMAGE["url"]] and claude.images == [COLOUR, GRAY]
+    assert "jeevees:2026-10" in world.desired
+
+    # a shorter retry window from the environment
+    world = FakeWorld(seen=seen, cache=_cache_all(PROMPT_VERSION),
+                      vision_status={**status, "fallback_age": 3 * HOUR})  # fmt: skip
+    claude = Claude({COLOUR: IMAGE_TEXT, GRAY: IMAGE_TEXT})
+    assert run(world, env={**ENV, "VONK_VISION_RETRY_AFTER": "2"}, fetch=fetch,
+               claude=claude) == 0  # fmt: skip
+    assert claude.images == [COLOUR, GRAY]
+
+
+def test_claude_fallback_stops_after_the_attempt_cap():
+    fetch, fetched = _counting_fetch()
+    status = {"fallback_failed_at": 1.0, "fallback_age": 100 * HOUR, "fallback_attempts": 3}
+    claude = Claude({COLOUR: IMAGE_TEXT, GRAY: IMAGE_TEXT})
+    world = FakeWorld(seen=_seen_image(True), cache=_cache_all(PROMPT_VERSION),
+                      vision_status=status)  # fmt: skip
+    assert run(world, fetch=fetch, claude=claude) == 0  # a warning, not a poll error
+    assert IMAGE["url"] not in fetched and claude.images == []
+    assert world.reports[0]["errors"] == []
+    assert world.reports[0]["warnings"] == [
+        "jeevees:2026-10 (post 2647): Claude vision fallback gave up after 3 attempts; "
+        "the post stays pending"
+    ]
+
+    world = FakeWorld(vision_status=status)  # not seen yet: downloaded, still no Claude call
+    assert run(world, fetch=fetch, claude=claude) == 0 and claude.images == []
+    assert any("gave up after 3 attempts" in w for w in world.reports[0]["warnings"])
+
+    world = FakeWorld(vision_status={**status, "fallback_attempts": 4})
+    assert run(world, env={**ENV, "VONK_VISION_MAX_FALLBACKS": "5"}, fetch=fetch,
+               claude=claude) == 0  # fmt: skip
+    assert claude.images == [COLOUR, GRAY]  # configurable cap
+
+
+def test_transcript_store_failure_after_a_good_claude_read_is_a_run_error():
+    world = FakeWorld(put_transcript_status=500)
+    code, _, claude = _fallback(world, env=ENV)
+    assert code == 1 and claude.images == [COLOUR, GRAY]
+    (error,) = world.reports[0]["errors"]
+    assert error.startswith("jeevees:2026-10 (post 2647): Claude transcript not stored")
+    assert "jeevees:2026-10" not in world.desired
+    assert set(world.desired) == {"groep:2026-2027", "kabouters:2026-10"}  # others go on
+
+
+def test_claude_read_without_digits_is_a_failure():
+    world = FakeWorld()
+    claude = Claude({COLOUR: "Kampmenu De Kring", GRAY: "Kampmenu De Kring"})
+    code, _, _ = _fallback(world, env=ENV, claude=claude)
+    assert code == 0 and world.transcript_puts == []
+    assert "a read has no digits" in world.failures[0]["reason"]
+
+
+def test_claude_renders_are_downscaled_and_ollama_dispatch_is_untouched():
+    RENDERS.clear()
+    world = FakeWorld()
+    _fallback(world, env=ENV)
+    assert RENDERS == [{"dpi": 150, "gray": False, "max_edge": 1568},
+                       {"dpi": 150, "gray": True, "max_edge": 1568}]  # fmt: skip
+
+
+def test_an_earlier_transcript_wins_over_the_claude_read():
+    world = FakeWorld()
+    original = world.handler
+
+    def handler(request):
+        if request.method == "PUT":  # the vision job stored its transcript meanwhile
+            world.transcripts[(IMAGE["sha256"], VISION_VERSION)] = IMAGE_TEXT
+        return original(request)
+
+    world.handler = handler
+    claude = Claude({COLOUR: "Zondag 8 november 10u30", GRAY: "Zondag 8 november 10u30"})
+    extractor = FakeExtractor()
+    code, _, _ = _fallback(world, env=ENV, claude=claude, extractor=extractor)
+    assert code == 0
+    body = world.desired["jeevees:2026-10"]
+    assert "jeevees-2026-10" in extractor.calls  # extracted from the stored transcript
+    assert "vision transcript (ollama): check dates against the poster" in body["warnings"]

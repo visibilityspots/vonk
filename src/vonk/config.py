@@ -22,8 +22,10 @@ a dispatched batch job next to an Ollama server. ``VONK_VISION_DISPATCH=1`` lets
 dispatch that job through the Nomad task API (``NOMAD_SECRETS_DIR``/``api.sock`` with the
 workload identity in ``NOMAD_TOKEN``); job name and namespace come from ``VONK_VISION_JOB``
 and ``VONK_VISION_NAMESPACE``. When that job failed for a PDF, or produced nothing within
-``VONK_VISION_FALLBACK_AFTER`` hours (default 12), or when dispatch is not configured, the
-poll transcribes the poster itself with Claude.
+``VONK_VISION_FALLBACK_AFTER`` hours after its first dispatch (default 12), or when
+dispatch is not configured, the poll transcribes the poster itself with Claude. A failed
+Claude attempt is retried after ``VONK_VISION_RETRY_AFTER`` hours (default 24), at most
+``VONK_VISION_MAX_FALLBACKS`` times (default 3) per PDF and vision version.
 """
 
 from __future__ import annotations
@@ -47,6 +49,8 @@ DEFAULT_VISION_MODEL = "qwen3-vl:4b"
 DEFAULT_VISION_JOB = "vonk-vision"
 DEFAULT_VISION_NAMESPACE = "default"
 DEFAULT_VISION_FALLBACK_AFTER = 12.0
+DEFAULT_VISION_RETRY_AFTER = 24.0
+DEFAULT_VISION_MAX_FALLBACKS = 3
 
 # Env var names required per role. CHILD_NAMES / TAKKEN count as missing when they parse to
 # an empty or invalid value.
@@ -152,18 +156,28 @@ def _parse_feed_takken(raw: str | None, errors: list[str]) -> tuple[Tak, ...]:
     return tuple(t for t in _parse_takken(raw, errors, "FEED_TAKKEN") if t is not Tak.GROEP)
 
 
-def _parse_hours(raw: str | None, errors: list[str], name: str) -> float:
-    """A positive number of hours; the default when unset or invalid (invalid is an error)."""
+def _parse_hours(raw: str | None, errors: list[str], name: str, default: float) -> float:
+    """A positive number of hours; ``default`` when unset or invalid (invalid is an error)."""
     if raw is None:
-        return DEFAULT_VISION_FALLBACK_AFTER
+        return default
     try:
         hours = float(raw)
     except ValueError:
         hours = -1.0
     if not hours > 0 or hours == float("inf"):
         errors.append(f"{name} must be a positive number of hours")
-        return DEFAULT_VISION_FALLBACK_AFTER
+        return default
     return hours
+
+
+def _parse_count(raw: str | None, errors: list[str], name: str, default: int) -> int:
+    """A positive whole number; ``default`` when unset or invalid (invalid is an error)."""
+    if raw is None:
+        return default
+    if not raw.isdigit() or int(raw) < 1:
+        errors.append(f"{name} must be a positive whole number")
+        return default
+    return int(raw)
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,7 +215,11 @@ class Settings:
     vonk_vision_job: str = DEFAULT_VISION_JOB
     vonk_vision_namespace: str = DEFAULT_VISION_NAMESPACE
     vonk_vision_fallback_after: float = DEFAULT_VISION_FALLBACK_AFTER
-    """Hours after a dispatch without transcript before the poll transcribes with Claude."""
+    """Hours after the first dispatch without transcript before the poll uses Claude."""
+    vonk_vision_retry_after: float = DEFAULT_VISION_RETRY_AFTER
+    """Hours after a failed Claude fallback before the poll tries Claude again."""
+    vonk_vision_max_fallbacks: int = DEFAULT_VISION_MAX_FALLBACKS
+    """Claude fallback attempts per PDF and vision version; then it only warns."""
     nomad_token: str | None = field(default=None, repr=False)
     nomad_secrets_dir: str | None = None
     errors: tuple[str, ...] = ()
@@ -241,7 +259,16 @@ class Settings:
             vonk_vision_job=get("VONK_VISION_JOB") or DEFAULT_VISION_JOB,
             vonk_vision_namespace=get("VONK_VISION_NAMESPACE") or DEFAULT_VISION_NAMESPACE,
             vonk_vision_fallback_after=_parse_hours(
-                get("VONK_VISION_FALLBACK_AFTER"), errors, "VONK_VISION_FALLBACK_AFTER"
+                get("VONK_VISION_FALLBACK_AFTER"), errors, "VONK_VISION_FALLBACK_AFTER",
+                DEFAULT_VISION_FALLBACK_AFTER,
+            ),
+            vonk_vision_retry_after=_parse_hours(
+                get("VONK_VISION_RETRY_AFTER"), errors, "VONK_VISION_RETRY_AFTER",
+                DEFAULT_VISION_RETRY_AFTER,
+            ),
+            vonk_vision_max_fallbacks=_parse_count(
+                get("VONK_VISION_MAX_FALLBACKS"), errors, "VONK_VISION_MAX_FALLBACKS",
+                DEFAULT_VISION_MAX_FALLBACKS,
             ),
             nomad_token=get("NOMAD_TOKEN"),
             nomad_secrets_dir=get("NOMAD_SECRETS_DIR"),

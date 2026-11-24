@@ -156,3 +156,18 @@ def test_vision_settings():
     )  # fmt: skip
     assert "wi-secret" not in repr(s)
     assert Settings.from_env({"VONK_VISION_DISPATCH": "<no value>"}).vonk_vision_dispatch is False
+
+
+def test_vision_retry_and_cap_settings():
+    s = Settings.from_env(FULL_ENV)
+    assert (s.vonk_vision_retry_after, s.vonk_vision_max_fallbacks) == (24.0, 3)
+    s = Settings.from_env({**FULL_ENV, "VONK_VISION_RETRY_AFTER": "6",
+                           "VONK_VISION_MAX_FALLBACKS": "5",
+                           "VONK_VISION_FALLBACK_AFTER": "48"})  # fmt: skip
+    assert (s.vonk_vision_retry_after, s.vonk_vision_max_fallbacks) == (6.0, 5)
+    assert s.vonk_vision_fallback_after == 48.0 and s.errors == ()  # above 12 h is fine
+    s = Settings.from_env({**FULL_ENV, "VONK_VISION_RETRY_AFTER": "-1",
+                           "VONK_VISION_MAX_FALLBACKS": "0"})  # fmt: skip
+    assert (s.vonk_vision_retry_after, s.vonk_vision_max_fallbacks) == (24.0, 3)
+    assert s.errors == ("VONK_VISION_RETRY_AFTER must be a positive number of hours",
+                        "VONK_VISION_MAX_FALLBACKS must be a positive whole number")  # fmt: skip

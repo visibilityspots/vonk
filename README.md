@@ -78,7 +78,9 @@ as missing.
 | `VONK_VISION_URL` | (in the job) | vision | Ollama base URL; no default |
 | `VONK_VISION_MODEL` | (in the job) | vision | vision model (default `qwen3-vl:4b`) |
 | `VONK_VISION_MODEL_DIGEST` | (in the job) | vision | optional: the model digest Ollama reports must match |
-| `VONK_VISION_FALLBACK_AFTER` | (in the job) | poll | hours after a dispatch without transcript before the poll reads the poster with Claude (default 12) |
+| `VONK_VISION_FALLBACK_AFTER` | (in the job) | poll | hours after the first dispatch without transcript before the poll reads the poster with Claude (default 12) |
+| `VONK_VISION_RETRY_AFTER` | (in the job) | poll | hours after a failed Claude fallback before it is tried again (default 24) |
+| `VONK_VISION_MAX_FALLBACKS` | (in the job) | poll | Claude fallback attempts per PDF and vision version (default 3) |
 | `PDF_URL`, `PDF_SHA256` | (dispatch meta) | vision | the PDF to transcribe; `NOMAD_META_PDF_URL` / `NOMAD_META_PDF_SHA256` are read first |
 
 ### Image-only vonks
@@ -107,13 +109,18 @@ fallback when that model fails or is not configured.
    (download, model, empty answer, digit mismatch, ...) is recorded for that PDF in the
    service (`POST /api/vision-failures`). It always reports back with `source = "vision"`,
    which has its own heartbeat gauges.
-3. Claude fallback: when the vision job failed for the PDF after its latest dispatch, when
-   that dispatch is older than `VONK_VISION_FALLBACK_AFTER` hours without a transcript, or
-   when dispatch is not configured at all, the poll reads the poster itself with Claude:
-   the same two renders, the same prompt and the same digit rule. A transcript that passes
-   is stored with engine `claude` and extracted in the same run; a failure stores nothing,
-   is recorded, becomes a warning, and the post stays pending.
-   `vonk_vision_fallbacks_total{result="ok"|"error"}` counts these attempts.
+3. Claude fallback: when the vision job failed for the PDF (this vision version) after its
+   latest dispatch, when its first dispatch of this version is older than
+   `VONK_VISION_FALLBACK_AFTER` hours without a transcript (a re-dispatch does not reset
+   that), or when dispatch is not configured at all, the poll reads the poster itself with
+   Claude: the same two renders scaled to at most 1568 px on the long edge, the same prompt
+   and the same digit rule (every page needs digits in both reads). A transcript that
+   passes is stored with engine `claude` and extracted in the same run; the first stored
+   transcript of a PDF and version always wins. A failure stores nothing, is recorded with
+   an attempt count, becomes a warning, and the post stays pending: the poll does not
+   download it again until `VONK_VISION_RETRY_AFTER` hours have passed, and after
+   `VONK_VISION_MAX_FALLBACKS` failed attempts it only warns (the pending metrics below
+   keep showing it). `vonk_vision_fallbacks_total{result="ok"|"error"}` counts attempts.
 4. A poll extracts from the transcript with Claude like from a text layer and caches the
    spans under the prompt version plus `-vision1`. The ChangeSet carries the warning
    "vision transcript (<engine>): check dates against the poster", plus a warning per

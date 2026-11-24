@@ -125,16 +125,23 @@ CREATE TABLE IF NOT EXISTS vision_dispatches (
     dispatched_at REAL NOT NULL
 );
 CREATE TABLE IF NOT EXISTS vision_failures (
-    pdf_sha256 TEXT PRIMARY KEY,
+    pdf_sha256 TEXT NOT NULL,
+    vision_version TEXT NOT NULL,
+    engine TEXT NOT NULL,
     failed_at REAL NOT NULL,
     reason TEXT NOT NULL,
-    engine TEXT NOT NULL
+    attempts INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (pdf_sha256, vision_version, engine)
 );
 """
 
 # Columns added after a table first shipped: (table, column, declaration). CREATE TABLE IF
 # NOT EXISTS leaves an existing table alone, so these are added on open when missing.
-_ADDED_COLUMNS = (("seen", "ocr", "INTEGER"), ("transcripts", "engine", "TEXT"))
+_ADDED_COLUMNS = (
+    ("seen", "ocr", "INTEGER"),
+    ("transcripts", "engine", "TEXT"),
+    ("vision_dispatches", "vision_version", "TEXT"),
+)
 
 MAX_FAILURE_REASON = 300
 
@@ -280,37 +287,69 @@ class Store:
 
     def put_transcript(
         self, pdf_sha256: str, vision_version: str, text: str, engine: str = "ollama"
-    ) -> None:
+    ) -> bool:
+        """Store a transcript unless one exists for (sha, version): the first one wins.
+        True when this one was stored."""
         with self._tx() as c:
-            c.execute(
-                "INSERT OR REPLACE INTO transcripts (pdf_sha256, vision_version, text,"
-                " created_at, engine) VALUES (?,?,?,?,?)",
-                (pdf_sha256, vision_version, text, self.clock(), engine),
+            return (
+                c.execute(
+                    "INSERT INTO transcripts (pdf_sha256, vision_version, text, created_at,"
+                    " engine) VALUES (?,?,?,?,?)"
+                    " ON CONFLICT(pdf_sha256, vision_version) DO NOTHING",
+                    (pdf_sha256, vision_version, text, self.clock(), engine),
+                ).rowcount
+                == 1
             )
 
-    def record_vision_failure(self, pdf_sha256: str, reason: str, engine: str) -> None:
-        """Remember the latest failed vision transcription of a PDF (reason shortened)."""
+    def record_vision_failure(
+        self, pdf_sha256: str, vision_version: str, reason: str, engine: str
+    ) -> int:
+        """Remember the latest failure of (PDF, vision version, engine), reason shortened,
+        and count the attempts; returns the attempt count."""
         with self._tx() as c:
             c.execute(
-                "INSERT OR REPLACE INTO vision_failures (pdf_sha256, failed_at, reason, engine)"
-                " VALUES (?,?,?,?)",
-                (pdf_sha256, self.clock(), reason[:MAX_FAILURE_REASON], engine),
+                "INSERT INTO vision_failures (pdf_sha256, vision_version, engine, failed_at,"
+                " reason) VALUES (?,?,?,?,?) ON CONFLICT(pdf_sha256, vision_version, engine)"
+                " DO UPDATE SET failed_at=excluded.failed_at, reason=excluded.reason,"
+                " attempts=attempts+1",
+                (pdf_sha256, vision_version, engine, self.clock(), reason[:MAX_FAILURE_REASON]),
             )
+            row = c.execute(
+                "SELECT attempts FROM vision_failures WHERE pdf_sha256=? AND vision_version=?"
+                " AND engine=?",
+                (pdf_sha256, vision_version, engine),
+            ).fetchone()
+        return int(row["attempts"])
 
-    def vision_status(self, pdf_sha256: str) -> dict[str, Any]:
-        """Latest successful dispatch and latest failure of a PDF (None when absent)."""
+    def vision_status(self, pdf_sha256: str, vision_version: str) -> dict[str, Any]:
+        """Dispatch and failure state of a PDF for one vision version (None when absent).
+
+        ``dispatched_at`` is the latest successful dispatch (any version);
+        ``first_dispatched_at`` the first one of this version, kept over re-dispatches.
+        Failures are per engine and only of this version."""
         d = self._query(
-            "SELECT dispatched_at FROM vision_dispatches WHERE pdf_sha256=?", (pdf_sha256,)
-        )
-        f = self._query(
-            "SELECT failed_at, reason, engine FROM vision_failures WHERE pdf_sha256=?",
+            "SELECT dispatched_at, first_dispatched_at, vision_version FROM vision_dispatches"
+            " WHERE pdf_sha256=?",
             (pdf_sha256,),
         )
+        failures = {
+            r["engine"]: r
+            for r in self._query(
+                "SELECT engine, failed_at, reason, attempts FROM vision_failures"
+                " WHERE pdf_sha256=? AND vision_version=?",
+                (pdf_sha256, vision_version),
+            )
+        }
+        ollama, claude = failures.get("ollama"), failures.get("claude")
+        same_version = bool(d) and d[0]["vision_version"] == vision_version
         return {
             "dispatched_at": d[0]["dispatched_at"] if d else None,
-            "failed_at": f[0]["failed_at"] if f else None,
-            "failure": f[0]["reason"] if f else None,
-            "failure_engine": f[0]["engine"] if f else None,
+            "first_dispatched_at": d[0]["first_dispatched_at"] if same_version else None,
+            "failed_at": ollama["failed_at"] if ollama else None,
+            "failure": ollama["reason"] if ollama else None,
+            "fallback_failed_at": claude["failed_at"] if claude else None,
+            "fallback_failure": claude["reason"] if claude else None,
+            "fallback_attempts": claude["attempts"] if claude else 0,
         }
 
     def dispatch_allowed(self, pdf_sha256: str, min_interval: float) -> bool:
@@ -321,15 +360,21 @@ class Store:
         )
         return not rows or self.clock() - rows[0]["dispatched_at"] >= min_interval
 
-    def record_dispatch(self, pdf_sha256: str, post_id: int) -> None:
-        """Record a successful vision dispatch; the first dispatch time is kept."""
+    def record_dispatch(
+        self, pdf_sha256: str, post_id: int, vision_version: str | None = None
+    ) -> None:
+        """Record a successful vision dispatch; the first dispatch time is kept as long as
+        the vision version stays the same."""
         now = self.clock()
         with self._tx() as c:
             c.execute(
                 "INSERT INTO vision_dispatches (pdf_sha256, post_id, first_dispatched_at,"
-                " dispatched_at) VALUES (?,?,?,?) ON CONFLICT(pdf_sha256) DO UPDATE SET"
-                " post_id=excluded.post_id, dispatched_at=excluded.dispatched_at",
-                (pdf_sha256, post_id, now, now),
+                " dispatched_at, vision_version) VALUES (?,?,?,?,?) ON CONFLICT(pdf_sha256)"
+                " DO UPDATE SET post_id=excluded.post_id, dispatched_at=excluded.dispatched_at,"
+                " first_dispatched_at=CASE WHEN vision_version IS excluded.vision_version"
+                " THEN first_dispatched_at ELSE excluded.first_dispatched_at END,"
+                " vision_version=excluded.vision_version",
+                (pdf_sha256, post_id, now, now, vision_version),
             )
 
     def vision_pending(self, vision_version: str) -> list[float]:

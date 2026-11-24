@@ -152,10 +152,19 @@ def ocr(data: bytes, *, dpi: int = OCR_DPI, lang: str = OCR_LANG,
         return "\f".join(pages)
 
 
+def png_size(png: bytes) -> tuple[int, int]:
+    """(width, height) from a PNG's IHDR chunk."""
+    if png[:8] != b"\x89PNG\r\n\x1a\n" or png[12:16] != b"IHDR":
+        raise PdfError("pdftoppm produced no PNG")
+    return int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big")
+
+
 def render_pages(data: bytes, *, dpi: int = RENDER_DPI, gray: bool = False,
+                 max_edge: int | None = None,
                  timeout: float = RENDER_TIMEOUT) -> list[bytes]:  # fmt: skip
     """Render every page of ``data`` to PNG with ``pdftoppm`` (``gray``: greyscale); one PNG
-    per page, in order."""
+    per page, in order. ``max_edge``: a page whose long edge exceeds it at ``dpi`` is
+    rendered again scaled down to fit (aspect kept); smaller pages stay as they are."""
     with tempfile.TemporaryDirectory(prefix="vonk-render-") as tmp:
         src = Path(tmp) / "in.pdf"
         src.write_bytes(data)
@@ -163,8 +172,17 @@ def render_pages(data: bytes, *, dpi: int = RENDER_DPI, gray: bool = False,
         _run(["pdftoppm", "-r", str(dpi), "-png", *mode, str(src), str(Path(tmp) / "page")],
              timeout, "poppler-utils")  # fmt: skip
         pages = [png.read_bytes() for png in sorted(Path(tmp).glob("page-*.png"))]
-    if not pages:
-        raise PdfError("pdftoppm rendered no pages")
+        if not pages:
+            raise PdfError("pdftoppm rendered no pages")
+        if max_edge is not None:
+            for number, png in enumerate(pages, 1):
+                if max(png_size(png)) <= max_edge:
+                    continue
+                out = Path(tmp) / f"scaled-{number}"
+                _run(["pdftoppm", "-f", str(number), "-l", str(number), "-scale-to",
+                      str(max_edge), "-png", *mode, "-singlefile", str(src), str(out)],
+                     timeout, "poppler-utils")  # fmt: skip
+                pages[number - 1] = out.with_suffix(".png").read_bytes()
     return pages
 
 

@@ -66,6 +66,8 @@ RENDER_DPI = 150
 """Both reads use 150 dpi: a larger render runs a small GPU out of memory. The second read
 is a greyscale render, so the two runs are not one guess on the same pixels."""
 CLAUDE_MAX_TOKENS = 4096
+CLAUDE_MAX_EDGE = 1568
+"""Long edge (px) of the images sent to Claude; larger renders are scaled down to fit."""
 
 ENGINE_OLLAMA = "ollama"
 ENGINE_CLAUDE = "claude"
@@ -229,6 +231,10 @@ def transcribe(
     for number, (png, second_png) in enumerate(zip(pages, second_pages, strict=True), 1):
         first = read_page(png)
         second = read_page(second_png)
+        if not digits(first) or not digits(second):
+            raise VisionError(
+                f"page {number}: a read has no digits at all (no dates or times read)"
+            )
         if digits(first) != digits(second):
             raise VisionError(
                 f"page {number}: two runs disagree on the digits "
@@ -348,7 +354,7 @@ class VisionRun:
         self.errors.append(f"vision {pdf_sha256}: {reason}")
         log.error("%s", reason)
         try:
-            self.service.vision_failure(pdf_sha256, reason, ENGINE_OLLAMA)
+            self.service.vision_failure(pdf_sha256, VISION_VERSION, reason, ENGINE_OLLAMA)
         except ServiceError as exc:
             log.error("vision failure not recorded: %s", exc)
 
@@ -367,8 +373,10 @@ class VisionRun:
                 log.info("transcript of %s already stored; nothing to do", pdf_sha256)
             else:
                 text = self.transcript(pdf_url, pdf_sha256)
-                self.service.put_transcript(pdf_sha256, VISION_VERSION, text, ENGINE_OLLAMA)
-                log.info("stored transcript of %s (%d chars)", pdf_sha256, len(text))
+                if self.service.put_transcript(pdf_sha256, VISION_VERSION, text, ENGINE_OLLAMA):
+                    log.info("stored transcript of %s (%d chars)", pdf_sha256, len(text))
+                else:
+                    log.info("a transcript of %s was stored meanwhile; kept that one", pdf_sha256)
         except (PdfError, VisionError, ServiceError) as exc:
             self.fail(pdf_sha256, str(exc))
         except Exception as exc:  # report anything unexpected, then fail the run

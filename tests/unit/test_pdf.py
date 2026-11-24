@@ -315,3 +315,16 @@ def test_render_pages_gray_asks_pdftoppm_for_greyscale(monkeypatch):
     assert render_pages(PDF) == [b"png"]
     assert commands[0][:5] == ["pdftoppm", "-r", "150", "-png", "-gray"]
     assert "-gray" not in commands[1]
+
+
+def test_render_pages_downscales_only_pages_above_max_edge():
+    from vonk.pdf import png_size
+
+    (page,) = render_pages(PDF)
+    assert png_size(page) == (1275, 1650)  # US letter at 150 dpi
+    (small,) = render_pages(PDF, max_edge=1568)
+    assert png_size(small) == (1212, 1568)  # long edge fits, aspect kept
+    (gray,) = render_pages(PDF, gray=True, max_edge=1568)
+    assert png_size(gray) == (1212, 1568)
+    (kept,) = render_pages(PDF, max_edge=2000)
+    assert png_size(kept) == (1275, 1650)  # never scaled up

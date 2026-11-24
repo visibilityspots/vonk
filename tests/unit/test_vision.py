@@ -302,9 +302,11 @@ class FakeWorld:
         _, _, _, sha, version = path.split("/")
         if request.method == "PUT":
             body = json.loads(request.content)
-            self.stored[(sha, version)] = body["text"]
-            self.engines[(sha, version)] = body["engine"]
-            return httpx.Response(200, json={})
+            stored = (sha, version) not in self.stored
+            if stored:
+                self.stored[(sha, version)] = body["text"]
+                self.engines[(sha, version)] = body["engine"]
+            return httpx.Response(200, json={"stored": stored})
         text = self.stored.get((sha, version))
         return httpx.Response(404) if text is None else httpx.Response(200, json={"text": text})
 
@@ -442,6 +444,7 @@ def test_vision_run_records_every_failure_for_the_pdf(world, env, reason):
     assert run(world, env) == 1
     (failure,) = world.failures
     assert failure["pdf_sha256"] == SHA and failure["engine"] == "ollama"
+    assert failure["vision_version"] == VISION_VERSION
     assert reason in failure["reason"]
     assert world.reports[0]["ok"] is False
 
@@ -523,3 +526,30 @@ def test_claude_read_page_errors(answer, match):
 
     with pytest.raises(VisionError, match=match):
         claude_read_page(FakeClaude(answer), b"png")
+
+
+def test_transcribe_rejects_reads_without_any_digit():
+    with pytest.raises(VisionError, match="page 1: a read has no digits"):
+        transcribe([b"p1"], [b"p1-gray"], lambda png: "Kampmenu De Kring")
+    answers = iter(["Zondag 8 november", "Zondag november"])
+    with pytest.raises(VisionError, match="page 1: a read has no digits"):
+        transcribe([b"p1"], [b"p1-gray"], lambda png: next(answers))
+
+
+def test_vision_run_keeps_a_transcript_stored_meanwhile(caplog):
+    import logging
+
+    caplog.set_level(logging.INFO)
+    world = FakeWorld()
+    original = world.handler
+
+    def handler(request):
+        # another run stored a transcript between our check and our PUT
+        if request.method == "PUT":
+            world.stored.setdefault((SHA, VISION_VERSION), "earlier")
+        return original(request)
+
+    world.handler = handler
+    assert run(world) == 0
+    assert world.stored == {(SHA, VISION_VERSION): "earlier"}
+    assert "kept that one" in caplog.text

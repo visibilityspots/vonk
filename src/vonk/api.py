@@ -13,14 +13,21 @@ Wire shapes (matched by ``vonk.poll.ServiceClient``):
 - ``POST /api/scopes/{scope_key}/desired`` ``{post, pdf_sha256, prompt_version, ocr, spans,
   events, warnings}`` -> ``{"changeset_id": str|None, "ops": int, ...}``
 - ``GET  /api/transcripts/{sha}/{vision_version}`` -> ``{"text": str, "engine": str}`` or 404
-- ``PUT  /api/transcripts/{sha}/{vision_version}`` ``{text, engine}`` -> ``{}``; ``engine`` is
-  ``ollama`` (``vonk vision``, the default) or ``claude`` (the poll's fallback)
-- ``GET  /api/vision-dispatch/{sha}`` -> ``{"dispatch": bool, "dispatched_at",
-  "dispatch_age", "failed_at", "failure"}``: ``dispatch`` is false while the last successful
-  vision dispatch of that PDF is less than 12 hours old; the rest is null when absent
-- ``POST /api/vision-failures`` ``{pdf_sha256, reason, engine}`` -> ``{}``: a failed vision
-  transcription of that PDF (the latest one is kept)
-- ``POST /api/vision-dispatch`` ``{pdf_sha256, post_id, ok, modified, scope_key}`` -> ``{}``:
+- ``PUT  /api/transcripts/{sha}/{vision_version}`` ``{text, engine}`` -> ``{"stored": bool}``;
+  ``engine`` is ``ollama`` (``vonk vision``, the default) or ``claude`` (the poll's
+  fallback); the first transcript of (sha, version) wins, a later one is not stored
+- ``GET  /api/vision-dispatch/{sha}?vision_version=`` -> ``{"dispatch": bool, "dispatched_at",
+  "dispatch_age", "failed_at", "failure", "fallback_failed_at", "fallback_age",
+  "fallback_attempts"}``: ``dispatch`` is false while the last successful vision dispatch of
+  that PDF is less than 12 hours old; ``dispatch_age`` counts from the first successful
+  dispatch of this version; failures are those of this version (``failed_at``: the vision
+  job, ``fallback_*``: the Claude fallback); null when absent
+- ``POST /api/vision-failures`` ``{pdf_sha256, vision_version, reason, engine, post?}`` ->
+  ``{"attempts": int}``: a failed vision transcription of that PDF and version (the latest
+  is kept, attempts are counted per engine); ``post`` (``{id, modified, scope_key}``) marks
+  the post seen as image-only, so the poll can skip it without a download
+- ``POST /api/vision-dispatch`` ``{pdf_sha256, post_id, ok, modified, scope_key,
+  vision_version}`` -> ``{}``:
   the outcome of a dispatch; ``ok`` records it (starting the 12 hour window) and marks the
   post seen as image-only, so the poll skips it without a download until the transcript is
   there; a failure only counts an error so the next poll tries again
@@ -284,7 +291,7 @@ class Service:
             answer["orphans"] = self.propose(ORPHAN_SCOPE)["ops"]
         return answer
 
-    def put_transcript(self, sha: str, vision_version: str, body: Any) -> None:
+    def put_transcript(self, sha: str, vision_version: str, body: Any) -> bool:
         if not _SHA256.fullmatch(sha):
             raise BadRequest("not a sha256")
         text = body.get("text") if isinstance(body, Mapping) else None
@@ -295,39 +302,73 @@ class Service:
         engine = body.get("engine", "ollama")
         if engine not in ENGINES:
             raise BadRequest("'engine' must be 'ollama' or 'claude'")
-        self.store.put_transcript(sha, vision_version, text, engine)
+        stored = self.store.put_transcript(sha, vision_version, text, engine)
         if engine == "claude":
             self.metrics.vision_fallbacks.labels(result="ok").inc()
         self.metrics.refresh(self.store)
+        return stored
 
-    def vision_status(self, sha: str) -> dict[str, Any]:
+    def vision_status(self, sha: str, vision_version: str | None) -> dict[str, Any]:
         if not _SHA256.fullmatch(sha):
             raise BadRequest("not a sha256")
-        status = self.store.vision_status(sha)
-        dispatched = status["dispatched_at"]
+        if vision_version is None or not _VISION_VERSION.fullmatch(vision_version):
+            raise BadRequest("needs a valid 'vision_version' query parameter")
+        status = self.store.vision_status(sha, vision_version)
+        now = self.clock()
+
+        def age(ts: float | None) -> float | None:
+            return None if ts is None else max(0.0, now - ts)
+
         return {
             "dispatch": self.store.dispatch_allowed(sha, VISION_DISPATCH_INTERVAL),
-            "dispatched_at": dispatched,
-            "dispatch_age": None if dispatched is None else max(0.0, self.clock() - dispatched),
+            "dispatched_at": status["dispatched_at"],
+            "dispatch_age": age(status["first_dispatched_at"]),
             "failed_at": status["failed_at"],
             "failure": status["failure"],
+            "fallback_failed_at": status["fallback_failed_at"],
+            "fallback_age": age(status["fallback_failed_at"]),
+            "fallback_attempts": status["fallback_attempts"],
         }
 
-    def vision_failure(self, body: Any) -> None:
-        """Record a failed vision transcription of a PDF; a failed Claude fallback also
-        counts in ``vonk_vision_fallbacks_total{result="error"}``."""
+    def _mark_pending(self, post_id: int, modified: str, sha: str, scope_key: str) -> None:
+        """Mark an image-only post seen without desired events (it waits for a transcript)."""
+        new_post = not self.store.is_seen(post_id)
+        self.store.mark_seen(post_id, modified, sha, scope_key, ocr=True)
+        if new_post:
+            now = self.clock()
+            self.store.set_meta(LAST_NEW_VONK, now)
+            self.metrics.last_new_vonk.set(now)
+
+    def vision_failure(self, body: Any) -> int:
+        """Record a failed vision transcription of a PDF; returns the attempt count of that
+        engine. A failed Claude fallback also counts in
+        ``vonk_vision_fallbacks_total{result="error"}``."""
         if not isinstance(body, Mapping):
             raise BadRequest("vision failure body must be an object")
         sha, reason, engine = body.get("pdf_sha256"), body.get("reason"), body.get("engine")
+        version = body.get("vision_version")
         if not isinstance(sha, str) or not _SHA256.fullmatch(sha):
             raise BadRequest("not a sha256")
+        if not isinstance(version, str) or not _VISION_VERSION.fullmatch(version):
+            raise BadRequest("invalid vision version")
         if not isinstance(reason, str) or not reason.strip():
             raise BadRequest("vision failure needs a non-empty 'reason'")
         if engine not in ENGINES:
             raise BadRequest("'engine' must be 'ollama' or 'claude'")
-        self.store.record_vision_failure(sha, reason.strip(), engine)
+        post = body.get("post")
+        if post is not None:
+            try:
+                post_id, modified = int(post["id"]), str(post["modified"])
+                scope_key = str(post["scope_key"])
+                Scope.parse(scope_key)
+            except (KeyError, TypeError, ValueError) as exc:
+                raise BadRequest(f"invalid vision-failure post: {exc}") from exc
+        attempts = self.store.record_vision_failure(sha, version, reason.strip(), engine)
+        if post is not None:
+            self._mark_pending(post_id, modified, sha, scope_key)
         if engine == "claude":
             self.metrics.vision_fallbacks.labels(result="error").inc()
+        return attempts
 
     def vision_dispatch(self, body: Any) -> None:
         """Record the outcome of a vision dispatch: a success starts the 12 hour window,
@@ -349,15 +390,13 @@ class Service:
             modified = str(body["modified"])
             scope_key = str(body["scope_key"])
             Scope.parse(scope_key)
+            version = body["vision_version"]
+            if not isinstance(version, str) or not _VISION_VERSION.fullmatch(version):
+                raise ValueError("invalid vision version")
         except (KeyError, TypeError, ValueError) as exc:
             raise BadRequest(f"invalid vision-dispatch body: {exc}") from exc
-        new_post = not self.store.is_seen(post_id)
-        self.store.record_dispatch(sha, post_id)
-        self.store.mark_seen(post_id, modified, sha, scope_key, ocr=True)
-        if new_post:
-            now = self.clock()
-            self.store.set_meta(LAST_NEW_VONK, now)
-            self.metrics.last_new_vonk.set(now)
+        self.store.record_dispatch(sha, post_id, version)
+        self._mark_pending(post_id, modified, sha, scope_key)
         self.metrics.vision_dispatches.inc()
         self.metrics.refresh(self.store)
 
@@ -650,10 +689,10 @@ def routes(service: Service) -> list[Route]:
         if request.method == "PUT":
             try:
                 body = await _json(request)
-                await run_in_threadpool(service.put_transcript, sha, version, body)
+                stored = await run_in_threadpool(service.put_transcript, sha, version, body)
             except BadRequest as exc:
                 return JSONResponse({"error": str(exc)}, status_code=400)
-            return JSONResponse({})
+            return JSONResponse({"stored": stored})
         found = await run_in_threadpool(service.store.get_transcript, sha, version)
         if found is None:
             return JSONResponse({"error": "no transcript"}, status_code=404)
@@ -673,7 +712,11 @@ def routes(service: Service) -> list[Route]:
         if (denied := _guard(service, request)) is not None:
             return denied
         try:
-            status = await run_in_threadpool(service.vision_status, request.path_params["sha"])
+            status = await run_in_threadpool(
+                service.vision_status,
+                request.path_params["sha"],
+                request.query_params.get("vision_version"),
+            )
         except BadRequest as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse(status)
@@ -683,10 +726,10 @@ def routes(service: Service) -> list[Route]:
             return denied
         try:
             body = await _json(request)
-            await run_in_threadpool(service.vision_failure, body)
+            attempts = await run_in_threadpool(service.vision_failure, body)
         except BadRequest as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        return JSONResponse({})
+        return JSONResponse({"attempts": attempts})
 
     async def poll_report(request: Request) -> Response:
         if (denied := _guard(service, request, allow_degraded=True)) is not None:
