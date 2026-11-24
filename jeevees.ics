@@ -210,6 +210,22 @@ X-VONK-DATE:2026-10-31
 X-VONK-SCOPE:jeevees:2026-10
 END:VEVENT
 BEGIN:VEVENT
+SUMMARY:Scouts Jeevees - Kampmenu
+DTSTART;TZID=Europe/Brussels:20261108T103000
+DTEND;TZID=Europe/Brussels:20261108T133000
+DTSTAMP:20261124T151349Z
+UID:vonk-34fd77cd26b9ef6b38382214@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:(einduur wordt meegedeeld via WhatsApp) KAMPMENU @ De Kring\ne
+ induur onbekend\nhttps://scoutstervant.be/wp-content/uploads/2026/10/Vonk-
+ jongverkenners-november-2026.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Vonk-jongverkenner
+ s-november-2026.1.pdf
+X-VONK-DATE:2026-11-08
+X-VONK-SCOPE:jeevees:2026-11
+END:VEVENT
+BEGIN:VEVENT
 SUMMARY:Scouts - Kampmenu
 DTSTART;TZID=Europe/Brussels:20261108T110000
 DTEND;TZID=Europe/Brussels:20261108T140000
@@ -226,17 +242,33 @@ X-VONK-SCOPE:groep:2026-2027
 END:VEVENT
 BEGIN:VEVENT
 SUMMARY:Scouts Jeevees - Filmmarathon
-DTSTART;VALUE=DATE:20261115
+DTSTART;VALUE=DATE:20261114
 DTEND;VALUE=DATE:20261116
-DTSTAMP:20261026T184430Z
-UID:vonk-15da1788773105e18d904850@feed.vonk.visibilityspots
+DTSTAMP:20261124T151349Z
+UID:vonk-4c83e6ef178fb543dc4cf8e9@feed.vonk.visibilityspots
 SEQUENCE:0
-DESCRIPTION:(pak slaapgerief mee als je gaat slapen)\nhttps://scoutstervan
- t.be/wp-content/uploads/2026/10/Vonk-jongverkenners-november-2026.1.pdf
+DESCRIPTION:FILM MARATHON\n(pak slaapgerief mee als je gaat slapen)\nhttps
+ ://scoutstervant.be/wp-content/uploads/2026/10/Vonk-jongverkenners-novembe
+ r-2026.1.pdf
 LOCATION:Scoutslokalen Tervant
 URL:https://scoutstervant.be/wp-content/uploads/2026/10/Vonk-jongverkenner
  s-november-2026.1.pdf
-X-VONK-DATE:2026-11-15
+X-VONK-DATE:2026-11-14
+X-VONK-SCOPE:jeevees:2026-11
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Jeevees - World Record Dag
+DTSTART;TZID=Europe/Brussels:20261122T140000
+DTEND;TZID=Europe/Brussels:20261122T163000
+DTSTAMP:20261124T151349Z
+UID:vonk-41be626432dd048b97d6f856@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/Vonk-jongv
+ erkenners-november-2026.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Vonk-jongverkenner
+ s-november-2026.1.pdf
+X-VONK-DATE:2026-11-22
 X-VONK-SCOPE:jeevees:2026-11
 END:VEVENT
 BEGIN:VEVENT
@@ -253,6 +285,21 @@ URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
  df
 X-VONK-DATE:2026-11-28
 X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Jeevees - Minimarkt
+DTSTART;TZID=Europe/Brussels:20261128T140000
+DTEND;TZID=Europe/Brussels:20261128T200000
+DTSTAMP:20261124T151349Z
+UID:vonk-8ece337dfe2e794c029ffcb5@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:(ouders zijn welkom vanaf 16u)\nhttps://scoutstervant.be/wp-co
+ ntent/uploads/2026/10/Vonk-jongverkenners-november-2026.1.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/10/Vonk-jongverkenner
+ s-november-2026.1.pdf
+X-VONK-DATE:2026-11-28
+X-VONK-SCOPE:jeevees:2026-11
 END:VEVENT
 BEGIN:VEVENT
 SUMMARY:Scouts - Kerstfeestje
