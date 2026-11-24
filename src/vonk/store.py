@@ -131,6 +131,7 @@ CREATE TABLE IF NOT EXISTS vision_failures (
     failed_at REAL NOT NULL,
     reason TEXT NOT NULL,
     attempts INTEGER NOT NULL DEFAULT 1,
+    first_failed_at REAL,
     PRIMARY KEY (pdf_sha256, vision_version, engine)
 );
 """
@@ -141,6 +142,7 @@ _ADDED_COLUMNS = (
     ("seen", "ocr", "INTEGER"),
     ("transcripts", "engine", "TEXT"),
     ("vision_dispatches", "vision_version", "TEXT"),
+    ("vision_failures", "first_failed_at", "REAL"),
 )
 
 MAX_FAILURE_REASON = 300
@@ -305,14 +307,17 @@ class Store:
         self, pdf_sha256: str, vision_version: str, reason: str, engine: str
     ) -> int:
         """Remember the latest failure of (PDF, vision version, engine), reason shortened,
-        and count the attempts; returns the attempt count."""
+        and count the attempts; returns the attempt count. ``first_failed_at`` keeps the
+        first failure (a row from before that column existed takes its ``failed_at``)."""
+        now = self.clock()
         with self._tx() as c:
             c.execute(
                 "INSERT INTO vision_failures (pdf_sha256, vision_version, engine, failed_at,"
-                " reason) VALUES (?,?,?,?,?) ON CONFLICT(pdf_sha256, vision_version, engine)"
+                " reason, first_failed_at) VALUES (?,?,?,?,?,?)"
+                " ON CONFLICT(pdf_sha256, vision_version, engine)"
                 " DO UPDATE SET failed_at=excluded.failed_at, reason=excluded.reason,"
-                " attempts=attempts+1",
-                (pdf_sha256, vision_version, engine, self.clock(), reason[:MAX_FAILURE_REASON]),
+                " attempts=attempts+1, first_failed_at=COALESCE(first_failed_at, failed_at)",
+                (pdf_sha256, vision_version, engine, now, reason[:MAX_FAILURE_REASON], now),
             )
             row = c.execute(
                 "SELECT attempts FROM vision_failures WHERE pdf_sha256=? AND vision_version=?"
@@ -378,14 +383,26 @@ class Store:
             )
 
     def vision_pending(self, vision_version: str) -> list[float]:
-        """First dispatch time of every dispatched PDF that has no transcript yet."""
+        """Start time of every image-only PDF a seen post waits on: it has no transcript of
+        ``vision_version`` but a dispatch or a failure of that version. The start is the
+        first dispatch or the first failure, whichever came first; one entry per PDF.
+
+        A PDF no seen post points at any more (the post got a new poster) is not counted.
+        A post that left WordPress keeps its seen row, so its PDF stays counted until
+        ``forget_seen_scope``."""
         rows = self._query(
-            "SELECT d.first_dispatched_at FROM vision_dispatches d WHERE NOT EXISTS"
-            " (SELECT 1 FROM transcripts t WHERE t.pdf_sha256=d.pdf_sha256"
-            " AND t.vision_version=?) ORDER BY 1",
-            (vision_version,),
+            "SELECT MIN(x.start) AS start FROM ("
+            " SELECT d.pdf_sha256 AS sha, d.first_dispatched_at AS start"
+            " FROM vision_dispatches d WHERE d.vision_version=?"
+            " UNION ALL"
+            " SELECT f.pdf_sha256, COALESCE(f.first_failed_at, f.failed_at)"
+            " FROM vision_failures f WHERE f.vision_version=?"
+            ") x WHERE x.sha IN (SELECT pdf_sha256 FROM seen WHERE ocr=1)"
+            " AND NOT EXISTS (SELECT 1 FROM transcripts t WHERE t.pdf_sha256=x.sha"
+            " AND t.vision_version=?) GROUP BY x.sha ORDER BY 1",
+            (vision_version, vision_version, vision_version),
         )
-        return [float(r["first_dispatched_at"]) for r in rows]
+        return [float(r["start"]) for r in rows]
 
     # --- identity map --------------------------------------------------------------------
 

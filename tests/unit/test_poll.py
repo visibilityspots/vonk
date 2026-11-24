@@ -57,6 +57,7 @@ class FakeWorld:
         self.failures: list[dict] = []
         self.dispatch_checks: list[str] = []
         self.dispatch_requests: list[dict] = []
+        self.pending_marks: list[dict] = []
         self.service_status = service_status
         self.service_down = service_down
         self.posts = posts
@@ -105,6 +106,14 @@ class FakeWorld:
                                              **self.vision_status})  # fmt: skip
         if path == "/api/vision-failures":
             self.failures.append(json.loads(request.content))
+            return httpx.Response(200, json={})
+        if path == "/api/vision-pending":
+            body = json.loads(request.content)
+            self.pending_marks.append(body)
+            post = body["post"]
+            self.seen = [r for r in self.seen if r["post_id"] != post["id"]] + [
+                {"post_id": post["id"], "modified": post["modified"],
+                 "pdf_sha256": body["pdf_sha256"], "ocr": True}]  # fmt: skip
             return httpx.Response(200, json={})
         if path == "/api/vision-dispatch":
             self.dispatch_requests.append(json.loads(request.content))
@@ -524,6 +533,9 @@ class Dispatcher:
 
 
 VISION_ENV = {**ENV, "VONK_VISION_DISPATCH": "1"}
+WAITING = {"pdf_sha256": IMAGE["sha256"],
+           "post": {"id": 2647, "modified": "2026-09-22T19:30:51+02:00",
+                    "scope_key": "jeevees:2026-10"}}  # fmt: skip
 
 
 def test_image_only_pdf_without_transcript_dispatches_the_vision_job():
@@ -552,6 +564,7 @@ def test_recent_dispatch_is_not_repeated():
     assert world.dispatch_checks == [IMAGE["sha256"]]
     assert world.dispatch_requests == [] and dispatcher.calls == []
     assert "jeevees:2026-10" not in world.desired
+    assert world.pending_marks == [WAITING]
 
 
 def test_without_dispatch_the_poll_reads_the_poster_with_claude():
@@ -1002,3 +1015,40 @@ def test_an_earlier_transcript_wins_over_the_claude_read():
     body = world.desired["jeevees:2026-10"]
     assert "jeevees-2026-10" in extractor.calls  # extracted from the stored transcript
     assert "vision transcript (ollama): check dates against the poster" in body["warnings"]
+
+
+@pytest.mark.parametrize("env,status", [
+    (VISION_ENV, {"dispatch": False}),  # dispatch window
+    (ENV, {"fallback_failed_at": 1.0, "fallback_age": 6 * HOUR, "fallback_attempts": 1}),
+    (ENV, {"fallback_failed_at": 1.0, "fallback_age": 100 * HOUR, "fallback_attempts": 3}),
+], ids=["wait", "backoff", "exhausted"])  # fmt: skip
+def test_edited_waiting_post_is_downloaded_once(env, status):
+    fetch, fetched = _counting_fetch()
+    seen = [{**r, "modified": "2026-09-01T00:00:00+02:00"} if r["post_id"] == 2647 else r
+            for r in _seen_image(True)]  # fmt: skip
+    status = dict(status)
+    allowed = status.pop("dispatch", True)
+    world = FakeWorld(seen=seen, cache=_cache_all(PROMPT_VERSION), vision_status=status,
+                      dispatch_allowed=allowed)  # fmt: skip
+    claude, dispatcher = Claude({COLOUR: IMAGE_TEXT, GRAY: IMAGE_TEXT}), Dispatcher()
+    assert run(world, env=env, fetch=fetch, claude=claude, dispatch=dispatcher) == 0
+    assert fetched == [IMAGE["url"]] and world.pending_marks == [WAITING]
+    assert run(world, env=env, fetch=fetch, claude=claude, dispatch=dispatcher) == 0
+    assert fetched == [IMAGE["url"]]  # the second poll skips it without a download
+    assert claude.images == [] and dispatcher.calls == []
+
+
+def test_unrecorded_waiting_post_is_a_run_error_for_that_post_only():
+    world = FakeWorld(dispatch_allowed=False)
+    original = world.handler
+
+    def handler(request):
+        if request.url.path == "/api/vision-pending":
+            return httpx.Response(500)
+        return original(request)
+
+    world.handler = handler
+    assert run(world, env=VISION_ENV, fetch=image_fetch, dispatch=Dispatcher()) == 1
+    (error,) = world.reports[0]["errors"]
+    assert error.startswith("jeevees:2026-10 (post 2647): waiting post not recorded")
+    assert set(world.desired) == {"groep:2026-2027", "kabouters:2026-10"}  # others go on

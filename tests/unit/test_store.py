@@ -226,20 +226,23 @@ def test_transcripts_and_vision_dispatches(tmp_path):
     assert store.get_transcript("sha", "v3") is None
 
     assert store.dispatch_allowed("a", 100) is True
-    store.record_dispatch("a", 1)
+    store.record_dispatch("a", 1, "v1")
     now[0] += 50
     assert store.dispatch_allowed("a", 100) is False
     assert store.dispatch_allowed("b", 100) is True
-    store.record_dispatch("b", 2)
+    store.record_dispatch("b", 2, "v1")
+    assert store.vision_pending("v1") == []  # no seen post waits on them yet
+    store.mark_seen(1, "m", "a", "jeevees:2026-11", ocr=True)
+    store.mark_seen(2, "m", "b", "jeevees:2026-11", ocr=True)
     assert store.vision_pending("v1") == [1000.0, 1050.0]
     now[0] += 60
     assert store.dispatch_allowed("a", 100) is True
-    store.record_dispatch("a", 1)
+    store.record_dispatch("a", 1, "v1")
     assert store.dispatch_allowed("a", 100) is False
     assert store.vision_pending("v1") == [1000.0, 1050.0]  # first dispatch time is kept
     store.put_transcript("a", "v1", "text")
     assert store.vision_pending("v1") == [1050.0]
-    assert store.vision_pending("v2") == [1000.0, 1050.0]
+    assert store.vision_pending("v2") == []  # dispatched for another version
 
 
 def test_old_seen_table_gets_the_ocr_column(tmp_path):
@@ -342,3 +345,23 @@ def test_old_vision_dispatches_table_gets_the_version_column(tmp_path):
     assert store.vision_status("a", "v1")["dispatched_at"] == 6.0
     store.record_dispatch("a", 1, "v1")
     assert store.vision_status("a", "v1")["first_dispatched_at"] == 100.0
+
+
+def test_legacy_failure_row_keeps_its_age_on_retry(tmp_path):
+    path = str(tmp_path / "vonk.db")
+    conn = sqlite3.connect(path)
+    conn.execute(
+        "CREATE TABLE vision_failures (pdf_sha256 TEXT NOT NULL, vision_version TEXT NOT NULL,"
+        " engine TEXT NOT NULL, failed_at REAL NOT NULL, reason TEXT NOT NULL,"
+        " attempts INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (pdf_sha256, vision_version, engine))"
+    )
+    conn.execute("INSERT INTO vision_failures VALUES ('a','v1','claude',500.0,'boom',1)")
+    conn.commit()
+    conn.close()
+    now = [2000.0]
+    store = Store(path, clock=lambda: now[0])
+    store.mark_seen(1, "m", "a", "jeevees:2026-11", ocr=True)
+    assert store.vision_pending("v1") == [500.0]
+    assert store.record_vision_failure("a", "v1", "again", "claude") == 2
+    assert store.vision_pending("v1") == [500.0]
+    store.close()

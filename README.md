@@ -127,8 +127,9 @@ fallback when that model fails or is not configured.
    title that does not occur in the OCR text.
 
 A failure anywhere on this path never falls back to the OCR text. Metrics:
-`vonk_vision_pending` and `vonk_vision_oldest_pending_age_seconds` (dispatched PDFs without
-a transcript), `vonk_vision_dispatches_total`, `vonk_vision_errors_total` (failed
+`vonk_vision_pending` and `vonk_vision_oldest_pending_age_seconds` (posters of seen posts
+that were dispatched or failed but have no transcript yet, aged from the first dispatch or
+failure; a post removed from WordPress stays counted until its scope is forgotten), `vonk_vision_dispatches_total`, `vonk_vision_errors_total` (failed
 dispatches and failed vision runs) and
 `vonk_last_{completed,successful}_vision_timestamp`. The model has to be pulled into the
 Ollama model store beforehand; pin it with `VONK_VISION_MODEL_DIGEST`. Without the vision

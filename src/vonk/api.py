@@ -31,6 +31,10 @@ Wire shapes (matched by ``vonk.poll.ServiceClient``):
   the outcome of a dispatch; ``ok`` records it (starting the 12 hour window) and marks the
   post seen as image-only, so the poll skips it without a download until the transcript is
   there; a failure only counts an error so the next poll tries again
+- ``POST /api/vision-pending`` ``{pdf_sha256, post: {id, modified, scope_key}}`` -> ``{}``:
+  marks the post seen as image-only while it waits for a transcript that was already
+  requested (dispatch window, fallback backoff, attempts used up), so an edited post is
+  not downloaded again on every poll
 - ``POST /api/poll-report`` ``{source, started, finished, ok, errors, warnings}`` -> ``{}``;
   ``source`` is ``poll`` (default) or ``vision``, each with its own heartbeat gauges
 
@@ -338,6 +342,22 @@ class Service:
             now = self.clock()
             self.store.set_meta(LAST_NEW_VONK, now)
             self.metrics.last_new_vonk.set(now)
+
+    def vision_pending(self, body: Any) -> None:
+        """Mark a post seen as image-only while it waits for its transcript."""
+        if not isinstance(body, Mapping):
+            raise BadRequest("vision pending body must be an object")
+        sha, post = body.get("pdf_sha256"), body.get("post")
+        if not isinstance(sha, str) or not _SHA256.fullmatch(sha):
+            raise BadRequest("not a sha256")
+        try:
+            post_id, modified = int(post["id"]), str(post["modified"])
+            datetime.fromisoformat(modified)
+            scope_key = str(post["scope_key"])
+            Scope.parse(scope_key)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise BadRequest(f"invalid vision-pending post: {exc}") from exc
+        self._mark_pending(post_id, modified, sha, scope_key)
 
     def vision_failure(self, body: Any) -> int:
         """Record a failed vision transcription of a PDF; returns the attempt count of that
@@ -731,6 +751,16 @@ def routes(service: Service) -> list[Route]:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse({"attempts": attempts})
 
+    async def vision_pending(request: Request) -> Response:
+        if (denied := _guard(service, request)) is not None:
+            return denied
+        try:
+            body = await _json(request)
+            await run_in_threadpool(service.vision_pending, body)
+        except BadRequest as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({})
+
     async def poll_report(request: Request) -> Response:
         if (denied := _guard(service, request, allow_degraded=True)) is not None:
             return denied
@@ -751,5 +781,6 @@ def routes(service: Service) -> list[Route]:
         Route("/api/vision-dispatch", vision_dispatch, methods=["POST"]),
         Route("/api/vision-dispatch/{sha}", vision_status, methods=["GET"]),
         Route("/api/vision-failures", vision_failure, methods=["POST"]),
+        Route("/api/vision-pending", vision_pending, methods=["POST"]),
         Route("/api/poll-report", poll_report, methods=["POST"]),
     ]

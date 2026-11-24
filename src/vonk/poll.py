@@ -201,6 +201,14 @@ class ServiceClient:
         if not resp.is_success:
             raise self._fail("POST", "/api/vision-failures", resp)
 
+    def mark_vision_pending(self, sha256: str, post: Mapping[str, Any]) -> None:
+        """Mark the post (``{id, modified, scope_key}``) seen as image-only while its PDF
+        waits for a transcript that was already requested."""
+        body = {"pdf_sha256": sha256, "post": dict(post)}
+        resp = self._request("POST", "/api/vision-pending", json=body)
+        if not resp.is_success:
+            raise self._fail("POST", "/api/vision-pending", resp)
+
     def vision_dispatch(
         self, sha256: str, post_id: int, ok: bool, *, modified: str = "", scope_key: str = ""
     ) -> None:
@@ -428,6 +436,7 @@ class PollRun:
             return
         if not status.get("dispatch"):
             log.info("%s: vision job dispatched recently; waiting for its transcript", label)
+            self._mark_waiting(item, pdf.sha256)
             return
         try:
             job_id = self.dispatch_vision(post.pdf_url, pdf.sha256)
@@ -437,6 +446,19 @@ class PollRun:
             raise
         log.info("%s: image-only PDF, dispatched vision job %s", label, job_id)
         self._report_dispatch(item, pdf.sha256, ok=True)
+
+    def _mark_waiting(self, item: IngestedPost, sha256: str) -> None:
+        """Record that the post (as it is now) waits for an already requested transcript,
+        so the next poll skips it without a download. A failure is a run error for this
+        post only."""
+        label = f"{item.scope.key} (post {item.post.id})"
+        post = {"id": item.post.id, "modified": item.post.modified.isoformat(),
+                "scope_key": item.scope.key}  # fmt: skip
+        try:
+            self.service.mark_vision_pending(sha256, post)
+        except ServiceError as exc:
+            self.errors.append(f"{label}: waiting post not recorded: {exc}")
+            log.error("%s: waiting post not recorded: %s", label, exc)
 
     def _report_dispatch(self, item: IngestedPost, sha256: str, *, ok: bool) -> None:
         """Tell the service how a dispatch went. A failure here is counted as a run error
@@ -498,9 +520,11 @@ class PollRun:
                 action = self.vision_action(status)
                 if action == "exhausted":
                     self._exhausted(item, status)
+                    self._mark_waiting(item, pdf.sha256)
                     return
                 if action == "backoff":
                     log.info("%s: Claude fallback failed recently; waiting", scope.key)
+                    self._mark_waiting(item, pdf.sha256)
                     return
                 if action != "claude":
                     self.request_vision(item, pdf, status)

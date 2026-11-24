@@ -478,9 +478,64 @@ def test_successful_dispatch_blocks_the_pdf_for_12_hours(world):
     world.clock.now += 3600
     assert allowed(world) is True
     dispatch(world)
-    dispatch(world, sha="b" * 64)
+    dispatch(world, sha="b" * 64, post_id=2737)
     assert metric(world, "vonk_vision_dispatches_total") == 3
     assert metric(world, "vonk_vision_pending") == 2
+
+
+def test_superseded_poster_is_not_pending(world):
+    dispatch(world)
+    dispatch(world, sha="b" * 64)  # the same post got a new poster
+    assert world.store.vision_pending(VV) == [world.clock.now]
+    assert metric(world, "vonk_vision_pending") == 1
+
+
+def test_vision_bump_leaves_nothing_pending(world):
+    dispatch(world)
+    assert world.store.vision_pending("2099-01-01.1") == []
+
+
+def failure(w, sha=SHA, engine="claude", post_id=2736):
+    body = {"pdf_sha256": sha, "vision_version": VV, "reason": "boom", "engine": engine,
+            "post": {"id": post_id, "modified": "2026-11-02T09:00:00",
+                     "scope_key": "jeevees:2026-11"}}  # fmt: skip
+    resp = w.client.post("/api/vision-failures", json=body, headers=w.auth)
+    assert resp.status_code == 200
+    return resp
+
+
+def test_claude_only_failure_is_pending_from_its_first_failure(world):
+    start = world.clock.now
+    failure(world)
+    world.clock.now += 24 * 3600
+    failure(world)
+    assert world.store.vision_pending(VV) == [start]
+    assert metric(world, "vonk_vision_pending") == 1
+
+
+def test_pending_starts_at_the_earliest_of_dispatch_and_failure(world):
+    start = world.clock.now
+    dispatch(world)
+    world.clock.now += 12 * 3600
+    failure(world, engine="ollama")
+    assert world.store.vision_pending(VV) == [start]
+
+
+def test_vision_pending_route_marks_the_edited_post(world):
+    body = {"pdf_sha256": SHA, "post": {"id": 2736, "modified": "2026-11-03T10:00:00",
+                                        "scope_key": "jeevees:2026-11"}}  # fmt: skip
+    resp = world.client.post("/api/vision-pending", json=body, headers=world.auth)
+    assert resp.status_code == 200
+    assert world.store.seen_posts() == [{"post_id": 2736, "modified": "2026-11-03T10:00:00",
+                                         "pdf_sha256": SHA, "ocr": True}]  # fmt: skip
+    for bad in ({"pdf_sha256": "x", "post": body["post"]}, {"pdf_sha256": SHA},
+                {"pdf_sha256": SHA, "post": {"id": 1, "modified": "m", "scope_key": "x"}},
+                {"pdf_sha256": SHA, "post": {**body["post"], "modified": "m"}},
+                {"pdf_sha256": SHA, "post": {**body["post"], "modified": None}},
+                ["x"]):  # fmt: skip
+        resp = world.client.post("/api/vision-pending", json=bad, headers=world.auth)
+        assert resp.status_code == 400
+    assert world.client.post("/api/vision-pending", json=body).status_code == 401
 
 
 def test_successful_dispatch_marks_the_post_seen_as_image_only(world):
