@@ -71,6 +71,21 @@ X-VONK-DATE:2026-10-02
 X-VONK-SCOPE:groep:2026-2027
 END:VEVENT
 BEGIN:VEVENT
+SUMMARY:Scouts Jins - Geen scouts (Powell feest)
+DTSTART;VALUE=DATE:20261002
+DTEND;VALUE=DATE:20261004
+DTSTAMP:20261124T151452Z
+UID:vonk-4f0744fe8385b0a4b0e32e8c@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:POWELL GRAAFMACHINE-FEEST & FUIF\nGeen scouts maar wel maximaa
+ l gaan!\nhttps://scoutstervant.be/wp-content/uploads/2026/09/vonk-okt_jins
+ .pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/vonk-okt_jins.pdf
+X-VONK-DATE:2026-10-02
+X-VONK-SCOPE:jins:2026-10
+END:VEVENT
+BEGIN:VEVENT
 SUMMARY:Scouts - Geen scouts (Powell party)
 DTSTART;VALUE=DATE:20261003
 DTEND;VALUE=DATE:20261004
@@ -86,14 +101,14 @@ X-VONK-DATE:2026-10-03
 X-VONK-SCOPE:groep:2026-2027
 END:VEVENT
 BEGIN:VEVENT
-SUMMARY:Scouts Jins - Menuverkoop
-DTSTART;VALUE=DATE:20261011
-DTEND;VALUE=DATE:20261012
-DTSTAMP:20261026T184453Z
-UID:vonk-c6a920c0cc6d015907fb4a64@feed.vonk.visibilityspots
+SUMMARY:Scouts Jins - Menu verkopen
+DTSTART;TZID=Europe/Brussels:20261011T100000
+DTEND;TZID=Europe/Brussels:20261011T170000
+DTSTAMP:20261124T151452Z
+UID:vonk-803c7f966ea3421e478924ec@feed.vonk.visibilityspots
 SEQUENCE:0
-DESCRIPTION:MENU & KAARTEN VERKOPEN\nhttps://scoutstervant.be/wp-content/u
- ploads/2026/09/vonk-okt_jins.pdf
+DESCRIPTION:GRAAFMACHINE-MENU & KAARTEN VERKOPEN\nhttps://scoutstervant.be
+ /wp-content/uploads/2026/09/vonk-okt_jins.pdf
 LOCATION:Scoutslokalen Tervant
 URL:https://scoutstervant.be/wp-content/uploads/2026/09/vonk-okt_jins.pdf
 X-VONK-DATE:2026-10-11
@@ -130,6 +145,20 @@ X-VONK-DATE:2026-10-18
 X-VONK-SCOPE:groep:2026-2027
 END:VEVENT
 BEGIN:VEVENT
+SUMMARY:Scouts Jins - Kookout
+DTSTART;TZID=Europe/Brussels:20261018T100000
+DTEND;TZID=Europe/Brussels:20261018T170000
+DTSTAMP:20261124T151452Z
+UID:vonk-315ba19f3a4ffadda13a72a1@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:SITE-KEUKEN KOOKOUT\nhttps://scoutstervant.be/wp-content/uploa
+ ds/2026/09/vonk-okt_jins.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/vonk-okt_jins.pdf
+X-VONK-DATE:2026-10-18
+X-VONK-SCOPE:jins:2026-10
+END:VEVENT
+BEGIN:VEVENT
 SUMMARY:Scouts - Dropping
 DTSTART;VALUE=DATE:20261024
 DTEND;VALUE=DATE:20261025
@@ -145,17 +174,31 @@ X-VONK-DATE:2026-10-24
 X-VONK-SCOPE:groep:2026-2027
 END:VEVENT
 BEGIN:VEVENT
-SUMMARY:Scouts Jins - Nachtdropping
+SUMMARY:Scouts Jins - Dropping
 DTSTART;VALUE=DATE:20261024
 DTEND;VALUE=DATE:20261025
-DTSTAMP:20261026T184453Z
+DTSTAMP:20261124T151452Z
 UID:vonk-dbcf007aab3a9ad8a55c63a4@feed.vonk.visibilityspots
 SEQUENCE:0
-DESCRIPTION:NACHT-SITE-DROPPING\nhttps://scoutstervant.be/wp-content/uploa
- ds/2026/09/vonk-okt_jins.pdf
+DESCRIPTION:NACHT-SITE-DROPPING\nVerdere info volgt\nhttps://scoutstervant
+ .be/wp-content/uploads/2026/09/vonk-okt_jins.pdf
 LOCATION:Scoutslokalen Tervant
 URL:https://scoutstervant.be/wp-content/uploads/2026/09/vonk-okt_jins.pdf
 X-VONK-DATE:2026-10-24
+X-VONK-SCOPE:jins:2026-10
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Jins - Halloween
+DTSTART;TZID=Europe/Brussels:20261031T140000
+DTEND;TZID=Europe/Brussels:20261031T170000
+DTSTAMP:20261124T151452Z
+UID:vonk-f1df220787be34deba85fc8f@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:HALLOWEEN BOUWPLAATS-VERGADERING\nKom allemaal verkleed!\nhttp
+ s://scoutstervant.be/wp-content/uploads/2026/09/vonk-okt_jins.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/09/vonk-okt_jins.pdf
+X-VONK-DATE:2026-10-31
 X-VONK-SCOPE:jins:2026-10
 END:VEVENT
 BEGIN:VEVENT
