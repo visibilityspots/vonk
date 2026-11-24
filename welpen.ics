@@ -214,11 +214,10 @@ BEGIN:VEVENT
 SUMMARY:Scouts Welpen - Één tegen allen
 DTSTART;TZID=Europe/Brussels:20261107T140000
 DTEND;TZID=Europe/Brussels:20261107T163000
-DTSTAMP:20261026T174421Z
+DTSTAMP:20261124T151523Z
 UID:vonk-3baa958188b9e5f0a8d7efac@feed.vonk.visibilityspots
 SEQUENCE:0
-DESCRIPTION:EÉN TEGEN ALLEN\nhttps://scoutstervant.be/wp-content/uploads/
- 2026/10/10933.pdf
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/10933.pdf
 LOCATION:Scoutslokalen Tervant
 URL:https://scoutstervant.be/wp-content/uploads/2026/10/10933.pdf
 X-VONK-DATE:2026-11-07
@@ -243,10 +242,10 @@ BEGIN:VEVENT
 SUMMARY:Scouts Welpen - Uitstap
 DTSTART;TZID=Europe/Brussels:20261114T140000
 DTEND;TZID=Europe/Brussels:20261114T163000
-DTSTAMP:20261026T174421Z
+DTSTAMP:20261124T151523Z
 UID:vonk-8f5c3fc33e53dc990cc057d9@feed.vonk.visibilityspots
 SEQUENCE:0
-DESCRIPTION:(VERDERE INFO VOLGT)\nhttps://scoutstervant.be/wp-content/uplo
+DESCRIPTION:(verdere info volgt)\nhttps://scoutstervant.be/wp-content/uplo
  ads/2026/10/10933.pdf
 LOCATION:Scoutslokalen Tervant
 URL:https://scoutstervant.be/wp-content/uploads/2026/10/10933.pdf
@@ -257,7 +256,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts Welpen - Spionnendag
 DTSTART;TZID=Europe/Brussels:20261122T140000
 DTEND;TZID=Europe/Brussels:20261122T163000
-DTSTAMP:20261026T174421Z
+DTSTAMP:20261124T151523Z
 UID:vonk-6da7f0ef0bcbad6616a2f6e5@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/10933.pdf
@@ -285,7 +284,7 @@ BEGIN:VEVENT
 SUMMARY:Scouts Welpen - Minimarkt
 DTSTART;TZID=Europe/Brussels:20261128T140000
 DTEND;TZID=Europe/Brussels:20261128T163000
-DTSTAMP:20261026T174421Z
+DTSTAMP:20261124T151523Z
 UID:vonk-78bf7615eb3f7d766e916cf5@feed.vonk.visibilityspots
 SEQUENCE:0
 DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/10/10933.pdf
