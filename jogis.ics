@@ -289,6 +289,51 @@ X-VONK-DATE:2026-11-28
 X-VONK-SCOPE:jogis:2026-11
 END:VEVENT
 BEGIN:VEVENT
+SUMMARY:Scouts Jogi's - Sinterklaas omgekeerd
+DTSTART;TZID=Europe/Brussels:20261206T140000
+DTEND;TZID=Europe/Brussels:20261206T163000
+DTSTAMP:20261128T110034Z
+UID:vonk-084aa2f29dadfc8e0e1e2de1@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Sinterklaas omgekeerd?!\n(kom verkleed)\nhttps://scoutstervant
+ .be/wp-content/uploads/2026/11/Vonk_Jogis_decemer.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Vonk_Jogis_decemer
+ .pdf
+X-VONK-DATE:2026-12-06
+X-VONK-SCOPE:jogis:2026-12
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Jogi's - Worstendag
+DTSTART;TZID=Europe/Brussels:20261212T140000
+DTEND;TZID=Europe/Brussels:20261212T163000
+DTSTAMP:20261128T110034Z
+UID:vonk-6c22f05e5815899fd82cfb99@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/11/Vonk_Jogis
+ _decemer.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Vonk_Jogis_decemer
+ .pdf
+X-VONK-DATE:2026-12-12
+X-VONK-SCOPE:jogis:2026-12
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Jogi's - Kerstfeest
+DTSTART;TZID=Europe/Brussels:20261218T183000
+DTEND;TZID=Europe/Brussels:20261218T210000
+DTSTAMP:20261128T110034Z
+UID:vonk-7632836010488479882c144d@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:Kerstfeest!!!\nverdere info volgt\nhttps://scoutstervant.be/wp
+ -content/uploads/2026/11/Vonk_Jogis_decemer.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Vonk_Jogis_decemer
+ .pdf
+X-VONK-DATE:2026-12-18
+X-VONK-SCOPE:jogis:2026-12
+END:VEVENT
+BEGIN:VEVENT
 SUMMARY:Scouts - Kerstfeestje
 DTSTART;TZID=Europe/Brussels:20261218T190000
 DTEND;TZID=Europe/Brussels:20261218T210000
@@ -302,6 +347,21 @@ URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
  df
 X-VONK-DATE:2026-12-18
 X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Jogi's - Middernachtmis
+DTSTART;VALUE=DATE:20261224
+DTEND;VALUE=DATE:20261225
+DTSTAMP:20261128T110034Z
+UID:vonk-06e2f6564dcaca2373fa402d@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:kom in uniform\nhttps://scoutstervant.be/wp-content/uploads/20
+ 26/11/Vonk_Jogis_decemer.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Vonk_Jogis_decemer
+ .pdf
+X-VONK-DATE:2026-12-24
+X-VONK-SCOPE:jogis:2026-12
 END:VEVENT
 BEGIN:VEVENT
 SUMMARY:Scouts - Middernachtmis
