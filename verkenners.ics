@@ -336,6 +336,21 @@ X-VONK-DATE:2026-12-18
 X-VONK-SCOPE:groep:2026-2027
 END:VEVENT
 BEGIN:VEVENT
+SUMMARY:Scouts Verkenners - Middernachtmis
+DTSTART;TZID=Europe/Brussels:20261224T000000
+DTEND;TZID=Europe/Brussels:20261224T030000
+DTSTAMP:20261128T110116Z
+UID:vonk-ad528293489e23fe80c08c6f@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:einduur onbekend\nhttps://scoutstervant.be/wp-content/uploads/
+ 2026/11/Vonk-verkenners-december.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Vonk-verkenners-de
+ cember.pdf
+X-VONK-DATE:2026-12-24
+X-VONK-SCOPE:verkenners:2026-12
+END:VEVENT
+BEGIN:VEVENT
 SUMMARY:Scouts - Middernachtmis
 DTSTART;TZID=Europe/Brussels:20261225T000000
 DTEND;TZID=Europe/Brussels:20261225T030000
