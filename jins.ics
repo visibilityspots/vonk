@@ -302,6 +302,36 @@ X-VONK-DATE:2026-11-28
 X-VONK-SCOPE:jins:2026-11
 END:VEVENT
 BEGIN:VEVENT
+SUMMARY:Scouts Jins - Kampvuur
+DTSTART;TZID=Europe/Brussels:20261204T190000
+DTEND;TZID=Europe/Brussels:20261204T210000
+DTSTAMP:20261128T110026Z
+UID:vonk-9462d42e33c132ce13fd4b9c@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/11/Dark-fanta
+ sy-kasteelachtergrond.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Dark-fantasy-kaste
+ elachtergrond.pdf
+X-VONK-DATE:2026-12-04
+X-VONK-SCOPE:jins:2026-12
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Jins - Quiz
+DTSTART;TZID=Europe/Brussels:20261211T190000
+DTEND;TZID=Europe/Brussels:20261211T210000
+DTSTAMP:20261128T110026Z
+UID:vonk-cfd278b2f0c3d534eeec91c5@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/11/Dark-fanta
+ sy-kasteelachtergrond.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Dark-fantasy-kaste
+ elachtergrond.pdf
+X-VONK-DATE:2026-12-11
+X-VONK-SCOPE:jins:2026-12
+END:VEVENT
+BEGIN:VEVENT
 SUMMARY:Scouts - Kerstfeestje
 DTSTART;TZID=Europe/Brussels:20261218T190000
 DTEND;TZID=Europe/Brussels:20261218T210000
@@ -317,6 +347,36 @@ X-VONK-DATE:2026-12-18
 X-VONK-SCOPE:groep:2026-2027
 END:VEVENT
 BEGIN:VEVENT
+SUMMARY:Scouts Jins - Kerstfeestje
+DTSTART;TZID=Europe/Brussels:20261218T190000
+DTEND;TZID=Europe/Brussels:20261218T210000
+DTSTAMP:20261128T110026Z
+UID:vonk-602af04c320b9d706017224d@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:KERSTFEETSJE\nVERDERE INFO VOLGT\nhttps://scoutstervant.be/wp-
+ content/uploads/2026/11/Dark-fantasy-kasteelachtergrond.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Dark-fantasy-kaste
+ elachtergrond.pdf
+X-VONK-DATE:2026-12-18
+X-VONK-SCOPE:jins:2026-12
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Jins - Middernachtmis
+DTSTART;VALUE=DATE:20261224
+DTEND;VALUE=DATE:20261225
+DTSTAMP:20261128T110026Z
+UID:vonk-526a12224f3b1d868784ebbe@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:MIDDENNACHTMIS KERK TERVANT\n(GEEN VERPLICTING)\nhttps://scout
+ stervant.be/wp-content/uploads/2026/11/Dark-fantasy-kasteelachtergrond.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Dark-fantasy-kaste
+ elachtergrond.pdf
+X-VONK-DATE:2026-12-24
+X-VONK-SCOPE:jins:2026-12
+END:VEVENT
+BEGIN:VEVENT
 SUMMARY:Scouts - Middernachtmis
 DTSTART;TZID=Europe/Brussels:20261225T000000
 DTEND;TZID=Europe/Brussels:20261225T030000
@@ -330,6 +390,21 @@ URL:https://scoutstervant.be/wp-content/uploads/2026/10/Jaarvonk-26-27.1.p
  df
 X-VONK-DATE:2026-12-25
 X-VONK-SCOPE:groep:2026-2027
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Scouts Jins - Geen scouts
+DTSTART;VALUE=DATE:20261226
+DTEND;VALUE=DATE:20261228
+DTSTAMP:20261128T110026Z
+UID:vonk-95bb0532fbe43a93b90343cc@feed.vonk.visibilityspots
+SEQUENCE:0
+DESCRIPTION:https://scoutstervant.be/wp-content/uploads/2026/11/Dark-fanta
+ sy-kasteelachtergrond.pdf
+LOCATION:Scoutslokalen Tervant
+URL:https://scoutstervant.be/wp-content/uploads/2026/11/Dark-fantasy-kaste
+ elachtergrond.pdf
+X-VONK-DATE:2026-12-26
+X-VONK-SCOPE:jins:2026-12
 END:VEVENT
 BEGIN:VEVENT
 SUMMARY:Scouts - Eetdag Akaba
